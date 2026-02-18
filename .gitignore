@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.vsix
+coverage/
+.env
+.env.local
+overrides-dev.json
+*.log
+.DS_Store

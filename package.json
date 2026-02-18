@@ -1,0 +1,44 @@
+{
+  "name": "branch-pilot",
+  "version": "1.0.0",
+  "description": "Azure DevOps extension to create branches from Work Items with smart naming rules",
+  "private": true,
+  "scripts": {
+    "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
+    "watch": "webpack --mode development --watch",
+    "serve": "webpack serve --mode development",
+    "package": "npm run build && npx tfx-cli extension create --manifest-globs vss-extension.json --output-path .",
+    "package:dev": "npx tfx-cli extension create --manifest-globs vss-extension.dev.json --output-path .",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "azure-devops-extension-api": "^4.0.0",
+    "azure-devops-extension-sdk": "^4.0.0",
+    "minimatch": "^9.0.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.3",
+    "@types/minimatch": "^5.1.2",
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
+    "copy-webpack-plugin": "^11.0.0",
+    "css-loader": "^6.8.1",
+    "html-webpack-plugin": "^5.5.3",
+    "rimraf": "^5.0.1",
+    "sass": "^1.63.6",
+    "sass-loader": "^13.3.2",
+    "style-loader": "^3.3.3",
+    "ts-jest": "^29.1.1",
+    "ts-loader": "^9.4.4",
+    "typescript": "^5.1.6",
+    "webpack": "^5.88.1",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.2.3"
+  }
+}

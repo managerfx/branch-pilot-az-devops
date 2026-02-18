@@ -1,0 +1,67 @@
+{
+  "manifestVersion": 1,
+  "id": "branch-pilot-dev",
+  "name": "BranchPilot (DEV)",
+  "version": "1.0.0",
+  "publisher": "felicitomarket",
+  "description": "[DEV] BranchPilot – local dev server at https://localhost:3000",
+  "public": false,
+  "categories": ["Azure Boards"],
+  "targets": [
+    { "id": "Microsoft.VisualStudio.Services" }
+  ],
+  "icons": {
+    "default": "assets/icons/logo.png"
+  },
+  "scopes": [
+    "vso.work_write",
+    "vso.code_write"
+  ],
+  "contributions": [
+    {
+      "id": "create-branch-action",
+      "type": "ms.vss-web.action",
+      "description": "Opens the BranchPilot dialog to create a branch from a Work Item",
+      "targets": [
+        "ms.vss-work-web.work-item-context-menu"
+      ],
+      "properties": {
+        "text": "BranchPilot: Create branch",
+        "title": "Create a new branch linked to this Work Item",
+        "toolbarText": "Create branch",
+        "icon": "assets/icons/branch-action.png",
+        "group": "actions",
+        "uri": "https://localhost:3000/action/index.html"
+      }
+    },
+    {
+      "id": "create-branch-dialog",
+      "type": "ms.vss-web.external-content",
+      "description": "Modal dialog content for branch creation",
+      "targets": [],
+      "properties": {
+        "uri": "https://localhost:3000/modal/index.html"
+      }
+    },
+    {
+      "id": "settings-hub",
+      "type": "ms.vss-web.hub",
+      "description": "BranchPilot settings for project administrators",
+      "targets": [
+        "ms.vss-web.project-admin-hub-group"
+      ],
+      "properties": {
+        "name": "BranchPilot (DEV)",
+        "order": 100,
+        "uri": "https://localhost:3000/settings/index.html",
+        "icon": "assets/icons/logo.png"
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "assets",
+      "addressable": true
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+import { getClient } from 'azure-devops-extension-api';
+import { GitRestClient } from 'azure-devops-extension-api/Git';
+import { CreateBranchParams, CreateBranchResult } from '../common/types';
+import { REFS_HEADS, ZERO_OBJECT_ID } from '../common/constants';
+import { shortTimestampSuffix } from '../common/utils';
+import { RepoService } from './RepoService';
+import { logger } from './Logger';
+
+/**
+ * BranchService creates Git branches via the Azure DevOps REST API.
+ */
+export class BranchService {
+  constructor(private repoService: RepoService) {}
+
+  /**
+   * Creates a new Git branch based on the given source branch.
+   *
+   * Returns a CreateBranchResult indicating success or failure.
+   * On 409/conflict, suggests an alternative name.
+   */
+  async createBranch(params: CreateBranchParams): Promise<CreateBranchResult> {
+    const { repoId, projectId, branchName, sourceBranchName, sourceObjectId, workItemId } = params;
+
+    logger.info('Creating branch', { repoId, branchName, sourceBranchName });
+
+    try {
+      const client = getClient(GitRestClient);
+
+      const updateResult = await client.updateRefs(
+        [
+          {
+            name: `${REFS_HEADS}${branchName}`,
+            newObjectId: sourceObjectId,
+            oldObjectId: ZERO_OBJECT_ID,
+            isLocked: false,
+            repositoryId: repoId,
+          },
+        ],
+        repoId,
+        projectId,
+      );
+
+      if (updateResult && updateResult.length > 0 && updateResult[0].success) {
+        logger.info('Branch created successfully', { branchName });
+        // Invalidate cache so the new branch shows up next time
+        this.repoService.invalidateBranchCache(projectId, repoId);
+        return { success: true, branchName };
+      }
+
+      const errMsg = updateResult?.[0]?.customMessage ?? 'Unknown error from Git refs update';
+      logger.error('Branch creation failed (updateRefs returned failure)', { updateResult });
+      return {
+        success: false,
+        error: errMsg,
+        diagnostics: { updateResult, params: { repoId, branchName, workItemId } },
+      };
+    } catch (err: unknown) {
+      const error = err as { status?: number; message?: string };
+      logger.error('Branch creation threw an error', { error: err });
+
+      // 409 = conflict (branch already exists)
+      if (error?.status === 409 || this.isConflictError(error)) {
+        const suggestion = this.buildAlternativeName(branchName);
+        return {
+          success: false,
+          error: `branch_exists:${branchName}:${suggestion}`,
+          diagnostics: { status: 409, branchName },
+        };
+      }
+
+      // 401/403 = permission denied
+      if (error?.status === 401 || error?.status === 403) {
+        return {
+          success: false,
+          error: 'permission_denied',
+          diagnostics: { status: error.status, repoId, branchName },
+        };
+      }
+
+      return {
+        success: false,
+        error: error?.message ?? String(err),
+        diagnostics: { error: err, params: { repoId, branchName, workItemId } },
+      };
+    }
+  }
+
+  /**
+   * Suggests an alternative branch name on conflict by appending -2, -3, … or a timestamp.
+   */
+  buildAlternativeName(branchName: string): string {
+    // Try numeric suffix first: feature/123-foo → feature/123-foo-2
+    const match = branchName.match(/^(.+)-(\d+)$/);
+    if (match) {
+      const base = match[1];
+      const num = parseInt(match[2], 10);
+      return `${base}-${num + 1}`;
+    }
+    // Otherwise append -2
+    if (!branchName.endsWith('-2')) {
+      return `${branchName}-2`;
+    }
+    // Last resort: timestamp suffix
+    return branchName + shortTimestampSuffix();
+  }
+
+  private isConflictError(err: unknown): boolean {
+    const msg = (err as { message?: string })?.message ?? '';
+    return (
+      msg.toLowerCase().includes('already exists') ||
+      msg.toLowerCase().includes('conflict')
+    );
+  }
+}

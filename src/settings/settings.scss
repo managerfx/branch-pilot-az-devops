@@ -1,0 +1,346 @@
+/* ─── BranchPilot Settings Hub Styles ──────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  color: #323130;
+  background: #faf9f8;
+}
+
+.bp-settings {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 24px 28px 60px;
+
+  /* ── Page header ── */
+  &__header {
+    margin-bottom: 28px;
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 4px;
+      color: #201f1e;
+    }
+
+    p {
+      margin: 0;
+      color: #605e5c;
+      font-size: 13px;
+    }
+  }
+
+  /* ── Top actions bar ── */
+  &__actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  /* ── Toast / feedback ── */
+  &__toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 10px 16px;
+    border-radius: 2px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    animation: bp-fadein 0.2s ease;
+
+    &--success {
+      background: #dff6dd;
+      border: 1px solid #107c10;
+      color: #0e6b0e;
+    }
+
+    &--error {
+      background: #fde7e9;
+      border: 1px solid #f1707b;
+      color: #a4262c;
+    }
+  }
+
+  /* ── Section card ── */
+  &__section {
+    background: white;
+    border: 1px solid #e1dfdd;
+    border-radius: 2px;
+    margin-bottom: 20px;
+
+    &-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e1dfdd;
+      cursor: pointer;
+      user-select: none;
+
+      &:hover {
+        background: #faf9f8;
+      }
+
+      h2 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0;
+        color: #201f1e;
+      }
+
+      .bp-chevron {
+        font-size: 10px;
+        color: #605e5c;
+        transition: transform 0.2s;
+
+        &--open {
+          transform: rotate(180deg);
+        }
+      }
+    }
+
+    &-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+
+      &--hidden {
+        display: none;
+      }
+    }
+  }
+
+  /* ── Field row ── */
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    &--row {
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+    }
+
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #201f1e;
+      min-width: 0;
+    }
+
+    .bp-hint {
+      font-size: 11px;
+      color: #605e5c;
+      margin-top: 2px;
+    }
+  }
+
+  /* ── Inputs ── */
+  &__input,
+  &__select {
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid #c8c6c4;
+    border-radius: 2px;
+    font-size: 13px;
+    font-family: inherit;
+    background: white;
+    outline: none;
+    transition: border-color 0.1s;
+
+    &:focus {
+      border-color: #0078d4;
+      box-shadow: 0 0 0 1px #0078d4;
+    }
+
+    &--wide {
+      width: 100%;
+    }
+
+    &--narrow {
+      width: 80px;
+    }
+
+    &--mono {
+      font-family: "Cascadia Code", "Consolas", monospace;
+    }
+  }
+
+  &__select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23605e5c' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 28px;
+  }
+
+  &__checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      cursor: pointer;
+      accent-color: #0078d4;
+    }
+  }
+
+  /* ── Rule cards ── */
+  &__rules {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__rule-card {
+    border: 1px solid #e1dfdd;
+    border-radius: 2px;
+    padding: 12px 14px;
+    background: #faf9f8;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+
+    &-header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+
+      span {
+        font-size: 12px;
+        font-weight: 600;
+        color: #605e5c;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+    }
+
+    &--full {
+      grid-column: 1 / -1;
+    }
+  }
+
+  &__add-rule-btn {
+    align-self: flex-start;
+  }
+
+  /* ── JSON editor (export/import) ── */
+  &__json-editor {
+    width: 100%;
+    min-height: 200px;
+    font-family: "Cascadia Code", "Consolas", monospace;
+    font-size: 12px;
+    border: 1px solid #c8c6c4;
+    border-radius: 2px;
+    padding: 10px;
+    resize: vertical;
+    outline: none;
+    background: #f3f2f1;
+
+    &:focus {
+      border-color: #0078d4;
+      box-shadow: 0 0 0 1px #0078d4;
+    }
+  }
+}
+
+/* ── Shared button styles ── */
+.bp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 14px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  white-space: nowrap;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &--primary {
+    background: #0078d4;
+    color: white;
+    border-color: #0078d4;
+
+    &:hover:not(:disabled) { background: #106ebe; border-color: #106ebe; }
+    &:active:not(:disabled) { background: #005a9e; }
+  }
+
+  &--secondary {
+    background: white;
+    color: #323130;
+    border-color: #c8c6c4;
+
+    &:hover:not(:disabled) { background: #f3f2f1; }
+  }
+
+  &--danger {
+    background: white;
+    color: #a4262c;
+    border-color: #a4262c;
+
+    &:hover:not(:disabled) { background: #fde7e9; }
+  }
+
+  &--small {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}
+
+/* ── Loading ── */
+.bp-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #605e5c;
+  padding: 40px 0;
+  justify-content: center;
+}
+
+@keyframes bp-spin {
+  to { transform: rotate(360deg); }
+}
+
+.bp-spinner-icon {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #c8c6c4;
+  border-top-color: #0078d4;
+  border-radius: 50%;
+  animation: bp-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes bp-fadein {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
