@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "branch-pilot-dev",
   "name": "BranchPilot (DEV)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "felicitomarket",
   "description": "[DEV] BranchPilot – local dev server at https://localhost:3000",
   "public": false,
