@@ -22,8 +22,11 @@ export class RepoService {
     }
 
     try {
+      console.log('[RepoService] Getting client...');
       const client = getClient(GitRestClient);
+      console.log('[RepoService] Client obtained, fetching repositories:', projectId);
       const repos = await client.getRepositories(projectId);
+      console.log('[RepoService] Repositories fetched:', repos);
 
       const result: RepoInfo[] = repos.map((r) => ({
         id: r.id!,

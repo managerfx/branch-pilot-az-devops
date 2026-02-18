@@ -24,6 +24,8 @@ export const it: Partial<Record<I18nKey, string>> = {
   'modal.error.branchNameRequired': 'Inserisci un nome per il branch.',
   'modal.error.branchExists':
     'Il branch "{name}" esiste già. Prova "{suggestion}".',
+  'modal.error.branchConflict':
+    'Impossibile creare "{name}" perché esiste il branch "{conflictingRef}". In Git, non è possibile avere sia un branch che una cartella con lo stesso nome. Elimina "{conflictingRef}" prima o usa un prefisso diverso.',
   'modal.error.permissionDenied':
     'Non hai i permessi per creare branch in questo repository.',
   'modal.error.generic': 'Si è verificato un errore: {message}',
@@ -33,7 +35,7 @@ export const it: Partial<Record<I18nKey, string>> = {
   'modal.btn.copyDiagnostics': 'Copia diagnostica',
   'modal.diagnostics.copied': 'Copiato!',
   'modal.stateUpdate': 'Lo stato del work item sarà impostato a "{state}".',
-
+  'modal.info.nameLocked': 'Il nome è bloccato dalle impostazioni dell\'amministratore.',  'modal.wi.updated': 'Aggiornato {time}',
   // ── Settings Hub ───────────────────────────────────────────────────
   'settings.title': 'Impostazioni BranchPilot',
   'settings.subtitle':
@@ -50,6 +52,9 @@ export const it: Partial<Record<I18nKey, string>> = {
     'Sei sicuro di voler ripristinare tutte le impostazioni ai valori predefiniti? L\'operazione non può essere annullata.',
 
   'settings.section.general': 'Generale',
+  'settings.general.language': 'Lingua',
+  'settings.general.language.en': 'English',
+  'settings.general.language.it': 'Italiano',
   'settings.general.lowercase': 'Forza nomi branch in minuscolo',
   'settings.general.nonAlnumReplacement':
     'Carattere sostitutivo per non-alfanumerici',
@@ -77,6 +82,7 @@ export const it: Partial<Record<I18nKey, string>> = {
   'settings.workItemType.addRule': 'Aggiungi regola',
   'settings.workItemType.removeRule': 'Rimuovi',
   'settings.workItemType.type': 'Tipo work item',
+  'settings.workItemType.selectType': '-- Seleziona un tipo --',
   'settings.workItemType.prefix': 'Prefisso',
   'settings.workItemType.template': 'Template',
   'settings.workItemType.stateEnabled': 'Aggiorna stato work item',

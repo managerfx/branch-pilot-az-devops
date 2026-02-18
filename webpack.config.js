@@ -36,7 +36,16 @@ module.exports = (env, argv) => {
     ],
   };
 
-  const sharedResolve = { extensions: ['.ts', '.tsx', '.js', '.jsx'] };
+  const sharedResolve = { 
+    extensions: ['.ts', '.tsx', '.js', '.jsx'],
+    // CRITICAL: Force all modules to use the same instance of SDK and API
+    // This prevents the "SDK is already loaded" error caused by azure-devops-extension-api
+    // importing its own copy of the SDK
+    alias: {
+      'azure-devops-extension-sdk': path.resolve(__dirname, 'node_modules/azure-devops-extension-sdk'),
+      'azure-devops-extension-api': path.resolve(__dirname, 'node_modules/azure-devops-extension-api'),
+    },
+  };
   const sharedPerformance = {
     hints: isDev ? false : 'warning',
     maxEntrypointSize: 1024 * 1024,
@@ -105,24 +114,24 @@ module.exports = (env, argv) => {
   };
 
   // ── Config 2: modal ───────────────────────────────────────────────────────
-  // ms.vss-web.external-content (dialog) iframes: ADO injects SDK.min.js AND
-  // provides RequireJS with azure-devops-extension-sdk registered.
-  // Declaring the SDK as an AMD external prevents the double-load that causes
-  // "SDK already loaded" → hung init() → infinite loading spinner.
+  // ms.vss-web.external-content (dialog) iframes. Bundle the SDK since Azure
+  // DevOps doesn't provide it in this context. The warning about duplicate SDK
+  // is cosmetic - what matters is that init() completes successfully.
   const modalConfig = {
     name: 'modal',
     mode,
     entry: { 'modal/modal': './src/modal/modal.tsx' },
-    externals: {
-      'azure-devops-extension-sdk': 'azure-devops-extension-sdk',
-    },
     output: {
       path: path.resolve(__dirname, 'dist'),
       filename: '[name].js',
-      library: { type: 'amd' },
     },
     resolve: sharedResolve,
     module: sharedModule,
+    optimization: {
+      // Prevent code splitting that might load SDK multiple times
+      splitChunks: false,
+      runtimeChunk: false,
+    },
     plugins: [
       new HtmlWebpackPlugin({
         template: './src/modal/index.html',

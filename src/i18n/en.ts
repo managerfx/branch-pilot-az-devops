@@ -22,6 +22,8 @@ export const en = {
   'modal.error.branchNameRequired': 'Please enter a branch name.',
   'modal.error.branchExists':
     'Branch "{name}" already exists. Try "{suggestion}".',
+  'modal.error.branchConflict':
+    'Cannot create "{name}" because branch "{conflictingRef}" exists. In Git, you cannot have both a branch and a folder with the same name. Delete "{conflictingRef}" first or use a different prefix.',
   'modal.error.permissionDenied':
     'You do not have permission to create branches in this repository.',
   'modal.error.generic': 'An error occurred: {message}',
@@ -31,6 +33,8 @@ export const en = {
   'modal.btn.copyDiagnostics': 'Copy diagnostics',
   'modal.diagnostics.copied': 'Copied!',
   'modal.stateUpdate': 'Work item state will be set to "{state}".',
+  'modal.info.nameLocked': 'Name is locked by administrator settings.',
+  'modal.wi.updated': 'Updated {time}',
 
   // ── Settings Hub ───────────────────────────────────────────────────
   'settings.title': 'BranchPilot Settings',
@@ -48,6 +52,9 @@ export const en = {
     'Are you sure you want to reset all settings to defaults? This cannot be undone.',
 
   'settings.section.general': 'General',
+  'settings.general.language': 'Language',
+  'settings.general.language.en': 'English',
+  'settings.general.language.it': 'Italiano',
   'settings.general.lowercase': 'Force branch names to lowercase',
   'settings.general.nonAlnumReplacement':
     'Non-alphanumeric replacement character',
@@ -75,6 +82,7 @@ export const en = {
   'settings.workItemType.addRule': 'Add rule',
   'settings.workItemType.removeRule': 'Remove',
   'settings.workItemType.type': 'Work item type',
+  'settings.workItemType.selectType': '-- Select a type --',
   'settings.workItemType.prefix': 'Prefix',
   'settings.workItemType.template': 'Template',
   'settings.workItemType.stateEnabled': 'Update work item state',

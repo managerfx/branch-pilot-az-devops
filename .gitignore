@@ -7,3 +7,4 @@ coverage/
 overrides-dev.json
 *.log
 .DS_Store
+tmpclaude-*

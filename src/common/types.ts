@@ -20,6 +20,8 @@ export interface GeneralConfig {
   maxLength: number;
   /** Allow users to manually edit the computed branch name */
   allowManualNameOverride: boolean;
+  /** UI language: 'en' or 'it' (default: 'en') */
+  language: 'en' | 'it';
 }
 
 export interface DefaultsConfig {
@@ -81,6 +83,11 @@ export interface WorkItemContext {
   assignedTo?: string;
   iterationPath?: string;
   areaPath?: string;
+  changedDate?: string;
+  /** URL of the work item type icon from Azure DevOps */
+  typeIcon?: string;
+  /** Hex color of the work item type (without #) */
+  typeColor?: string;
 }
 
 export interface RepoInfo {

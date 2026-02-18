@@ -49,6 +49,29 @@ export class BranchService {
 
       const errMsg = updateResult?.[0]?.customMessage ?? 'Unknown error from Git refs update';
       logger.error('Branch creation failed (updateRefs returned failure)', { updateResult });
+      
+      // Handle name conflicts (e.g., "Name conflicts with refs/heads/hotfix")
+      // This happens when trying to create hotfix/123 but "hotfix" branch exists
+      const conflictMatch = errMsg.match(/conflicts?\s+with\s+refs\/heads\/(.+)/i);
+      if (conflictMatch) {
+        const conflictingRef = conflictMatch[1];
+        return {
+          success: false,
+          error: `branch_conflict:${branchName}:${conflictingRef}`,
+          diagnostics: { updateResult, branchName, conflictingRef },
+        };
+      }
+      
+      // Handle branch already exists case
+      if (this.isConflictError({ message: errMsg })) {
+        const suggestion = this.buildAlternativeName(branchName);
+        return {
+          success: false,
+          error: `branch_exists:${branchName}:${suggestion}`,
+          diagnostics: { updateResult, branchName },
+        };
+      }
+      
       return {
         success: false,
         error: errMsg,
@@ -105,10 +128,11 @@ export class BranchService {
   }
 
   private isConflictError(err: unknown): boolean {
-    const msg = (err as { message?: string })?.message ?? '';
+    const msg = (err as { message?: string })?.message?.toLowerCase() ?? '';
     return (
-      msg.toLowerCase().includes('already exists') ||
-      msg.toLowerCase().includes('conflict')
+      msg.includes('already exists') ||
+      msg.includes('conflict') ||
+      msg.includes('conflicts')
     );
   }
 }

@@ -6,6 +6,16 @@ import {
 import { ModalConfig } from '../common/types';
 import { logger } from '../services/Logger';
 
+// Suppress browser extension errors that interfere with the page
+window.addEventListener('error', (event) => {
+  const msg = event.message || '';
+  if (msg.includes('runtime.lastError') || msg.includes('Receiving end does not exist')) {
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+  }
+}, true);
+
 /**
  * Action registration page.
  *
@@ -63,7 +73,7 @@ async function initAction(): Promise<void> {
           projectName: context.currentProjectName ?? '',
         };
 
-        layoutService.openCustomDialog(dialogContributionId, {
+        layoutService.openPanel(dialogContributionId, {
           title: 'BranchPilot: Create branch',
           configuration: modalConfig,
         });

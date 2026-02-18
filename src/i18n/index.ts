@@ -9,12 +9,20 @@ const locales: Record<string, PartialTranslations> = { en, it };
 let currentLocale = 'en';
 
 /**
- * Initialises the locale based on the browser/host language.
+ * Sets the locale to the specified language code.
  * Falls back to 'en' if the locale is not supported.
+ * @param lang - Language code ('en', 'it')
  */
-export function initLocale(): void {
-  const lang = (navigator.language || 'en').split('-')[0].toLowerCase();
-  currentLocale = locales[lang] ? lang : 'en';
+export function initLocale(lang?: string): void {
+  const normalized = (lang || 'en').split('-')[0].toLowerCase();
+  currentLocale = locales[normalized] ? normalized : 'en';
+}
+
+/**
+ * Returns the current locale code.
+ */
+export function getLocale(): string {
+  return currentLocale;
 }
 
 /**

@@ -37,6 +37,15 @@ export interface IMessageDialogOptions {
   hideCloseButton?: boolean;
 }
 
+export interface IPanelOptions {
+  title?: string;
+  /** Configuration data passed to the panel content page via SDK.getConfiguration() */
+  configuration?: unknown;
+  /** Size of the panel: 'medium', 'large', 'full' */
+  size?: number;
+  onClose?: () => void;
+}
+
 /**
  * The modern ADO dialog API lives on IHostPageLayoutService, NOT on a
  * separate "HostDialogService" (which was removed in SDK v4).
@@ -49,6 +58,11 @@ export interface IHostPageLayoutService {
   ): void;
   /** Opens a simple message dialog. */
   openMessageDialog(message: string, options?: IMessageDialogOptions): void;
+  /** Opens a panel (side sheet) showing custom extension content. */
+  openPanel<TResult = void>(
+    contentContributionId: string,
+    options?: IPanelOptions,
+  ): void;
 }
 
 export interface IExtensionDataManager {

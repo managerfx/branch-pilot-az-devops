@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useReducer, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import * as SDK from 'azure-devops-extension-sdk';
-import { ServiceIds } from '../common/sdk-services';
 
 import { BranchInfo, ModalConfig, RepoInfo, WorkItemContext } from '../common/types';
 import { ConfigService } from '../services/ConfigService';
@@ -154,6 +153,66 @@ function reducer(state: ModalState, action: Action): ModalState {
   }
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Returns a relative time string like "2m ago", "1h ago", "3d ago" */
+function formatRelativeTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 30) return `${diffDays}d ago`;
+    const diffMonths = Math.floor(diffDays / 30);
+    return `${diffMonths}mo ago`;
+  } catch {
+    return '';
+  }
+}
+
+/** Returns a work item icon component - uses ADO icon URL if available, fallback to colored square */
+function WorkItemIcon({ type, iconUrl, color }: { type: string; iconUrl?: string; color?: string }) {
+  // Use ADO icon if available
+  if (iconUrl) {
+    return (
+      <img 
+        className="bp-wi-icon" 
+        src={iconUrl} 
+        alt={type}
+        width="16" 
+        height="16" 
+        style={{ objectFit: 'contain' }}
+      />
+    );
+  }
+  
+  // Fallback: colored square based on type color or default color mapping
+  const fallbackColor = color ? `#${color}` : getDefaultTypeColor(type);
+  return (
+    <div 
+      className="bp-wi-icon bp-wi-icon--fallback"
+      style={{ backgroundColor: fallbackColor }}
+    />
+  );
+}
+
+/** Returns a default color for common work item types */
+function getDefaultTypeColor(type: string): string {
+  const t = type?.toLowerCase() ?? '';
+  if (t.includes('bug')) return '#cc293d';
+  if (t.includes('task')) return '#f2cb1d';
+  if (t.includes('user story') || t.includes('story')) return '#009ccc';
+  if (t.includes('feature')) return '#773b93';
+  if (t.includes('epic')) return '#ff7b00';
+  return '#605e5c';
+}
+
 // ─── Services (instantiated once) ───────────────────────────────────────────
 
 const repoService = new RepoService();
@@ -174,10 +233,29 @@ const CreateBranchModal: React.FC = () => {
 
     async function init() {
       try {
+        console.log('[BranchPilot] Starting SDK init...');
+        
         await SDK.init({ loaded: false });
-        initLocale();
+        console.log('[BranchPilot] SDK init completed, waiting for ready...');
+        
+        // CRITICAL: Wait for SDK to be fully ready before making API calls
+        // This ensures the XDM handshake is complete
+        // Add timeout in case it hangs due to double SDK loading
+        await Promise.race([
+          SDK.ready(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('SDK.ready() timeout after 5s')), 5000)
+          )
+        ]).catch(err => {
+          console.warn('[BranchPilot] SDK.ready() failed, proceeding anyway:', err);
+        });
+        console.log('[BranchPilot] SDK ready - XDM handshake complete');
+        
+        // Initialize with English as default (will update after config loads)
+        initLocale('en');
 
         const sdkConfig = SDK.getConfiguration() as ModalConfig;
+        console.log('[BranchPilot] SDK config:', sdkConfig);
         const projectId: string = sdkConfig.projectId ?? SDK.getPageContext().webContext.project.id;
         const workItemId: number = sdkConfig.workItemId ?? 0;
 
@@ -186,13 +264,38 @@ const CreateBranchModal: React.FC = () => {
           return;
         }
 
+        console.log('[BranchPilot] Loading config, work item, and repos...');
         // Load config and work item in parallel
         const configService = new ConfigService(projectId);
+        
+        // Add timeout helper
+        const withTimeout = <T,>(promise: Promise<T>, ms: number, name: string): Promise<T> => {
+          return Promise.race([
+            promise,
+            new Promise<T>((_, reject) => 
+              setTimeout(() => reject(new Error(`${name} timeout after ${ms}ms`)), ms)
+            )
+          ]);
+        };
+        
+        const configPromise = withTimeout(configService.load(), 15000, 'Config')
+          .then(c => { console.log('[BranchPilot] Config loaded:', c); return c; })
+          .catch(e => { console.error('[BranchPilot] Config load failed:', e); throw e; });
+        
+        const workItemPromise = withTimeout(workItemService.getWorkItemContext(workItemId, projectId), 15000, 'WorkItem')
+          .then(wi => { console.log('[BranchPilot] WorkItem loaded:', wi); return wi; })
+          .catch(e => { console.error('[BranchPilot] WorkItem load failed:', e); throw e; });
+        
+        const reposPromise = withTimeout(repoService.getRepositories(projectId), 15000, 'Repos')
+          .then(r => { console.log('[BranchPilot] Repos loaded:', r); return r; })
+          .catch(e => { console.error('[BranchPilot] Repos load failed:', e); throw e; });
+        
         const [config, workItem, repos] = await Promise.all([
-          configService.load(),
-          workItemService.getWorkItemContext(workItemId),
-          repoService.getRepositories(projectId),
+          configPromise,
+          workItemPromise,
+          reposPromise,
         ]);
+        console.log('[BranchPilot] All data loaded:', { config, workItem, repos });
 
         if (!workItem) {
           if (!cancelled) dispatch({ type: 'INIT_ERROR', payload: t('modal.error.invalidWorkItemId') });
@@ -201,8 +304,12 @@ const CreateBranchModal: React.FC = () => {
 
         rulesEngineRef.current = new RulesEngine(config);
         maxLengthRef.current = config.general.maxLength;
+        
+        // Set language from saved config
+        initLocale(config.general.language || 'en');
 
         if (!cancelled) {
+          console.log('[BranchPilot] Dispatching INIT_SUCCESS');
           dispatch({
             type: 'INIT_SUCCESS',
             payload: {
@@ -214,9 +321,11 @@ const CreateBranchModal: React.FC = () => {
           });
         }
       } catch (err) {
+        console.error('[BranchPilot] Modal init failed:', err);
         logger.error('Modal init failed', err);
         if (!cancelled) dispatch({ type: 'INIT_ERROR', payload: t('modal.error.generic', { message: String(err) }) });
       } finally {
+        console.log('[BranchPilot] Notifying load succeeded');
         if (!cancelled) SDK.notifyLoadSucceeded();
       }
     }
@@ -332,6 +441,12 @@ const CreateBranchModal: React.FC = () => {
             type: 'CREATE_ERROR',
             payload: t('modal.error.branchExists', { name: parts[1], suggestion: parts[2] }),
           });
+        } else if (result.error?.startsWith('branch_conflict:')) {
+          const parts = result.error.split(':');
+          dispatch({
+            type: 'CREATE_ERROR',
+            payload: t('modal.error.branchConflict', { name: parts[1], conflictingRef: parts[2] }),
+          });
         } else if (result.error === 'permission_denied') {
           dispatch({ type: 'CREATE_ERROR', payload: t('modal.error.permissionDenied') });
         } else {
@@ -351,24 +466,15 @@ const CreateBranchModal: React.FC = () => {
         }
       }
 
-      dispatch({
-        type: 'CREATE_SUCCESS',
-        payload: t('modal.success', { name: branchName.trim(), id: String(workItem!.id) }),
-      });
-
-      // Auto-close the dialog after a short delay.
-      // The HostPageLayoutService may expose a close() shim; if not, the
-      // user can dismiss via the X button — the try/catch handles both cases.
-      setTimeout(async () => {
-        try {
-          const svc = await SDK.getService<{ close(): void }>(
-            ServiceIds.HostPageLayoutService,
-          );
-          svc.close();
-        } catch {
-          // Dialog already closed or close() not available on this service.
+      // Close the panel immediately
+      try {
+        const panelConfig = SDK.getConfiguration() as { panel?: { close(): void } };
+        if (panelConfig?.panel?.close) {
+          panelConfig.panel.close();
         }
-      }, 1800);
+      } catch {
+        // Panel close not available or already closed
+      }
     } catch (err) {
       logger.error('Create branch failed', err);
       dispatch({ type: 'CREATE_ERROR', payload: t('modal.error.generic', { message: String(err) }) });
@@ -411,16 +517,39 @@ const CreateBranchModal: React.FC = () => {
 
   return (
     <div className="bp-modal">
-      {/* Work item context */}
-      <div className="bp-modal__wi-info">
-        <span className="bp-wi-type">{workItem?.type}</span>
-        <span>#{workItem?.id} – {workItem?.title}</span>
-      </div>
-
       <div className="bp-modal__body">
+        {/* ── Branch name ── */}
+        <div className="bp-modal__field">
+          <label htmlFor="bp-name">
+            {t('modal.field.branchName')}
+            {state.allowManualOverride && <span className="bp-required"> *</span>}
+          </label>
+          <input
+            id="bp-name"
+            type="text"
+            className="bp-modal__input"
+            value={state.branchName}
+            placeholder={t('modal.field.branchName.placeholder')}
+            disabled={!state.allowManualOverride || state.creating}
+            onChange={(e) => dispatch({ type: 'SET_BRANCH_NAME', payload: e.target.value })}
+          />
+          {state.branchNameError && (
+            <div className="bp-modal__error">⚠ {state.branchNameError}</div>
+          )}
+          {!state.branchNameError && state.branchNameWarning && (
+            <div className="bp-modal__warning">⚠ {state.branchNameWarning}</div>
+          )}
+          {!state.allowManualOverride && (
+            <div className="bp-modal__info">{t('modal.info.nameLocked')}</div>
+          )}
+        </div>
+
         {/* ── Repository ── */}
         <div className="bp-modal__field">
           <label htmlFor="bp-repo">
+            <svg className="bp-repo-icon" width="14" height="14" viewBox="0 0 48 48">
+              <path fill="#F4511E" d="M42.2,22.1L25.9,5.8C25.4,5.3,24.7,5,24,5c0,0,0,0,0,0c-0.7,0-1.4,0.3-1.9,0.8l-3.5,3.5l4.1,4.1c0.4-0.2,0.8-0.3,1.3-0.3c1.7,0,3,1.3,3,3c0,0.5-0.1,0.9-0.3,1.3l4,4c0.4-0.2,0.8-0.3,1.3-0.3c1.7,0,3,1.3,3,3s-1.3,3-3,3c-1.7,0-3-1.3-3-3c0-0.5,0.1-0.9,0.3-1.3l-4-4c-0.1,0-0.2,0.1-0.3,0.1v10.4c1.2,0.4,2,1.5,2,2.8c0,1.7-1.3,3-3,3s-3-1.3-3-3c0-1.3,0.8-2.4,2-2.8V18.8c-1.2-0.4-2-1.5-2-2.8c0-0.5,0.1-0.9,0.3-1.3l-4.1-4.1L5.8,22.1C5.3,22.6,5,23.3,5,24c0,0.7,0.3,1.4,0.8,1.9l16.3,16.3c0,0,0,0,0,0c0.5,0.5,1.2,0.8,1.9,0.8s1.4-0.3,1.9-0.8l16.3-16.3c0.5-0.5,0.8-1.2,0.8-1.9C43,23.3,42.7,22.6,42.2,22.1z"/>
+            </svg>
             {t('modal.field.repository')}
             <span className="bp-required"> *</span>
           </label>
@@ -441,6 +570,9 @@ const CreateBranchModal: React.FC = () => {
         {/* ── Based on ── */}
         <div className="bp-modal__field">
           <label htmlFor="bp-base">
+            <svg className="bp-branch-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.492 2.492 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z"/>
+            </svg>
             {t('modal.field.basedOn')}
             <span className="bp-required"> *</span>
           </label>
@@ -459,35 +591,9 @@ const CreateBranchModal: React.FC = () => {
             >
               <option value="" disabled>{t('modal.field.basedOn.placeholder')}</option>
               {branches.map((b) => (
-                <option key={b.objectId} value={b.name}>{b.name}</option>
+                <option key={b.name} value={b.name}>{b.name}</option>
               ))}
             </select>
-          )}
-        </div>
-
-        {/* ── Branch name ── */}
-        <div className="bp-modal__field">
-          <label htmlFor="bp-name">
-            {t('modal.field.branchName')}
-            <span className="bp-required"> *</span>
-          </label>
-          <input
-            id="bp-name"
-            type="text"
-            className="bp-modal__input"
-            value={state.branchName}
-            placeholder={t('modal.field.branchName.placeholder')}
-            disabled={!state.allowManualOverride || state.creating}
-            onChange={(e) => dispatch({ type: 'SET_BRANCH_NAME', payload: e.target.value })}
-          />
-          {state.branchNameError && (
-            <div className="bp-modal__error">⚠ {state.branchNameError}</div>
-          )}
-          {!state.branchNameError && state.branchNameWarning && (
-            <div className="bp-modal__warning">⚠ {state.branchNameWarning}</div>
-          )}
-          {!state.allowManualOverride && (
-            <div className="bp-modal__info">Name is locked by administrator settings.</div>
           )}
         </div>
 
@@ -530,18 +636,45 @@ const CreateBranchModal: React.FC = () => {
         )}
       </div>
 
+      {/* ── Work Item Card ── */}
+      {workItem && (
+        <div className="bp-modal__wi-card">
+          <div className="bp-modal__wi-card-icon">
+            <WorkItemIcon type={workItem.type} iconUrl={workItem.typeIcon} color={workItem.typeColor} />
+          </div>
+          <div className="bp-modal__wi-card-content">
+            <div className="bp-modal__wi-card-title">
+              <span className="bp-modal__wi-card-type">{workItem.type}</span>
+              <span className="bp-modal__wi-card-id">#{workItem.id}:</span>
+              <span className="bp-modal__wi-card-name">{workItem.title}</span>
+            </div>
+            <div className="bp-modal__wi-card-meta">
+              {workItem.changedDate && (
+                <span className="bp-modal__wi-card-updated">
+                  {t('modal.wi.updated', { time: formatRelativeTime(workItem.changedDate) })}
+                </span>
+              )}
+              <span className="bp-modal__wi-card-state">
+                <span className="bp-modal__wi-card-dot" />
+                {workItem.state}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Footer ── */}
       <div className="bp-modal__footer">
         <button
           className="bp-btn bp-btn--secondary"
           disabled={state.creating}
-          onClick={async () => {
+          onClick={() => {
             try {
-              const svc = await SDK.getService<{ close(): void }>(
-                ServiceIds.HostPageLayoutService,
-              );
-              svc.close();
-            } catch {/* close() not available — user can dismiss via X */}
+              const panelConfig = SDK.getConfiguration() as { panel?: { close(): void } };
+              if (panelConfig?.panel?.close) {
+                panelConfig.panel.close();
+              }
+            } catch {/* Panel close not available */}
           }}
         >
           {t('modal.btn.cancel')}
@@ -572,6 +705,16 @@ const CreateBranchModal: React.FC = () => {
 };
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
+
+// Suppress browser extension errors that interfere with the page
+window.addEventListener('error', (event) => {
+  const msg = event.message || '';
+  if (msg.includes('runtime.lastError') || msg.includes('Receiving end does not exist')) {
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+  }
+}, true);
 
 const container = document.getElementById('root');
 if (container) {

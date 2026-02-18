@@ -48,7 +48,16 @@ export class ConfigService {
         logger.info('No stored config found, using defaults');
       }
     } catch (err) {
-      logger.error('Failed to load config, using defaults', err);
+      // 404 is expected when config hasn't been saved yet - don't log as error
+      const is404 = err && typeof err === 'object' && 
+        ('status' in err && err.status === 404 || 
+         'message' in err && typeof err.message === 'string' && err.message.includes('404'));
+      
+      if (is404) {
+        logger.info('Config not found (not yet saved), using defaults', { projectId: this.projectId });
+      } else {
+        logger.error('Failed to load config, using defaults', err);
+      }
       this.cache = DEFAULT_CONFIG as ExtensionConfig;
     }
 

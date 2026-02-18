@@ -8,6 +8,7 @@ import {
   WorkItemTypeRule,
 } from '../common/types';
 import { ConfigService } from '../services/ConfigService';
+import { WorkItemService, WorkItemTypeInfo } from '../services/WorkItemService';
 import { DEFAULT_CONFIG } from '../common/constants';
 import { initLocale, t } from '../i18n';
 import { logger } from '../services/Logger';
@@ -21,24 +22,26 @@ interface SettingsState {
   saving: boolean;
   toast: { message: string; type: 'success' | 'error' } | null;
   config: ExtensionConfig;
-  // Section collapse state
-  openSections: Set<string>;
+  // Active tab
+  activeTab: 'general' | 'sourceBranchRules' | 'workItemTypeRules';
   // Import/export editor
   showJsonEditor: boolean;
   jsonEditorValue: string;
   jsonEditorError: string | null;
   projectId: string;
+  // Available work item types from Azure DevOps
+  workItemTypes: WorkItemTypeInfo[];
 }
 
 type Action =
-  | { type: 'LOADED'; payload: { config: ExtensionConfig; projectId: string } }
+  | { type: 'LOADED'; payload: { config: ExtensionConfig; projectId: string; workItemTypes: WorkItemTypeInfo[] } }
   | { type: 'SET_CONFIG'; payload: ExtensionConfig }
   | { type: 'SAVING' }
   | { type: 'SAVED' }
   | { type: 'SAVE_ERROR'; payload: string }
   | { type: 'SHOW_TOAST'; payload: { message: string; type: 'success' | 'error' } }
   | { type: 'HIDE_TOAST' }
-  | { type: 'TOGGLE_SECTION'; payload: string }
+  | { type: 'SET_TAB'; payload: 'general' | 'sourceBranchRules' | 'workItemTypeRules' }
   | { type: 'TOGGLE_JSON_EDITOR' }
   | { type: 'SET_JSON'; payload: string }
   | { type: 'JSON_ERROR'; payload: string | null };
@@ -49,18 +52,19 @@ function initialState(): SettingsState {
     saving: false,
     toast: null,
     config: DEFAULT_CONFIG as ExtensionConfig,
-    openSections: new Set(['general', 'defaults', 'sourceBranchRules', 'workItemTypeRules']),
+    activeTab: 'general',
     showJsonEditor: false,
     jsonEditorValue: '',
     jsonEditorError: null,
     projectId: '',
+    workItemTypes: [],
   };
 }
 
 function reducer(state: SettingsState, action: Action): SettingsState {
   switch (action.type) {
     case 'LOADED':
-      return { ...state, loading: false, config: action.payload.config, projectId: action.payload.projectId };
+      return { ...state, loading: false, config: action.payload.config, projectId: action.payload.projectId, workItemTypes: action.payload.workItemTypes };
     case 'SET_CONFIG':
       return { ...state, config: action.payload };
     case 'SAVING':
@@ -73,11 +77,8 @@ function reducer(state: SettingsState, action: Action): SettingsState {
       return { ...state, toast: action.payload };
     case 'HIDE_TOAST':
       return { ...state, toast: null };
-    case 'TOGGLE_SECTION': {
-      const next = new Set(state.openSections);
-      next.has(action.payload) ? next.delete(action.payload) : next.add(action.payload);
-      return { ...state, openSections: next };
-    }
+    case 'SET_TAB':
+      return { ...state, activeTab: action.payload };
     case 'TOGGLE_JSON_EDITOR':
       return {
         ...state,
@@ -113,17 +114,26 @@ const SettingsHub: React.FC = () => {
     async function init() {
       try {
         await SDK.init({ loaded: false });
-        initLocale();
+        
+        // Initialize with English as default
+        initLocale('en');
 
         const ctx = SDK.getPageContext();
         const projectId = ctx.webContext.project.id;
         configServiceRef = new ConfigService(projectId);
         const config = await configServiceRef.load();
+        
+        // Set language from saved config
+        initLocale(config.general.language || 'en');
 
-        if (!cancelled) dispatch({ type: 'LOADED', payload: { config, projectId } });
+        // Fetch available work item types
+        const workItemService = new WorkItemService();
+        const workItemTypes = await workItemService.getWorkItemTypes(projectId);
+
+        if (!cancelled) dispatch({ type: 'LOADED', payload: { config, projectId, workItemTypes } });
       } catch (err) {
         logger.error('Settings init failed', err);
-        if (!cancelled) dispatch({ type: 'LOADED', payload: { config: DEFAULT_CONFIG as ExtensionConfig, projectId: '' } });
+        if (!cancelled) dispatch({ type: 'LOADED', payload: { config: DEFAULT_CONFIG as ExtensionConfig, projectId: '', workItemTypes: [] } });
       } finally {
         SDK.notifyLoadSucceeded();
       }
@@ -288,7 +298,7 @@ const SettingsHub: React.FC = () => {
     );
   }
 
-  const { config, openSections } = state;
+  const { config, activeTab } = state;
 
   return (
     <div className="bp-settings">
@@ -320,7 +330,7 @@ const SettingsHub: React.FC = () => {
 
       {/* ── Raw JSON editor ── */}
       {state.showJsonEditor && (
-        <Section title="Raw JSON Configuration" id="json" openSections={openSections} dispatch={dispatch}>
+        <div className="bp-settings__json-section">
           <textarea
             className="bp-settings__json-editor"
             value={state.jsonEditorValue}
@@ -340,112 +350,148 @@ const SettingsHub: React.FC = () => {
               Reset to current
             </button>
           </div>
-        </Section>
+        </div>
       )}
 
-      {/* ── General ── */}
-      <Section title={t('settings.section.general')} id="general" openSections={openSections} dispatch={dispatch}>
-        <label className="bp-settings__checkbox-label">
-          <input
-            type="checkbox"
-            checked={config.general.lowercase}
-            onChange={(e) => setGeneral('lowercase', e.target.checked)}
-          />
-          {t('settings.general.lowercase')}
-        </label>
-
-        <div className="bp-settings__field">
-          <label>{t('settings.general.nonAlnumReplacement')}</label>
-          <input
-            type="text"
-            className="bp-settings__input bp-settings__input--narrow bp-settings__input--mono"
-            maxLength={1}
-            value={config.general.nonAlnumReplacement}
-            onChange={(e) => setGeneral('nonAlnumReplacement', e.target.value)}
-          />
-        </div>
-
-        <div className="bp-settings__field">
-          <label>{t('settings.general.maxLength')}</label>
-          <input
-            type="number"
-            className="bp-settings__input bp-settings__input--narrow"
-            min={20}
-            max={250}
-            value={config.general.maxLength}
-            onChange={(e) => setGeneral('maxLength', Number(e.target.value))}
-          />
-        </div>
-
-        <label className="bp-settings__checkbox-label">
-          <input
-            type="checkbox"
-            checked={config.general.allowManualNameOverride}
-            onChange={(e) => setGeneral('allowManualNameOverride', e.target.checked)}
-          />
-          {t('settings.general.allowManualOverride')}
-        </label>
-      </Section>
-
-      {/* ── Default template ── */}
-      <Section title={t('settings.section.defaults')} id="defaults" openSections={openSections} dispatch={dispatch}>
-        <div className="bp-settings__field">
-          <label>{t('settings.defaults.template')}</label>
-          <input
-            type="text"
-            className="bp-settings__input bp-settings__input--wide bp-settings__input--mono"
-            value={config.defaults.template}
-            onChange={(e) => setDefaultTemplate(e.target.value)}
-          />
-          <span className="bp-hint">{t('settings.defaults.template.hint')}</span>
-        </div>
-      </Section>
-
-      {/* ── Source branch rules ── */}
-      <Section
-        title={t('settings.section.sourceBranchRules')}
-        id="sourceBranchRules"
-        openSections={openSections}
-        dispatch={dispatch}
-      >
-        <div className="bp-settings__rules">
-          {config.rulesBySourceBranch.map((rule, i) => (
-            <SourceBranchRuleCard
-              key={i}
-              index={i}
-              rule={rule}
-              onChange={(updated) => updateSourceBranchRule(i, updated)}
-              onRemove={() => removeSourceBranchRule(i)}
-            />
-          ))}
-        </div>
-        <button className="bp-btn bp-btn--secondary bp-btn--small bp-settings__add-rule-btn" onClick={addSourceBranchRule}>
-          + {t('settings.sourceBranch.addRule')}
+      {/* ── Tabs ── */}
+      <div className="bp-settings__tabs">
+        <button
+          className={`bp-settings__tab${activeTab === 'general' ? ' bp-settings__tab--active' : ''}`}
+          onClick={() => dispatch({ type: 'SET_TAB', payload: 'general' })}
+        >
+          {t('settings.section.general')}
         </button>
-      </Section>
-
-      {/* ── Work item type rules ── */}
-      <Section
-        title={t('settings.section.workItemTypeRules')}
-        id="workItemTypeRules"
-        openSections={openSections}
-        dispatch={dispatch}
-      >
-        <div className="bp-settings__rules">
-          {config.rulesByWorkItemType.map((rule, i) => (
-            <WorkItemTypeRuleCard
-              key={i}
-              index={i}
-              rule={rule}
-              onChange={(updated) => updateWorkItemTypeRule(i, updated)}
-              onRemove={() => removeWorkItemTypeRule(i)}
-            />
-          ))}
-        </div>
-        <button className="bp-btn bp-btn--secondary bp-btn--small bp-settings__add-rule-btn" onClick={addWorkItemTypeRule}>
-          + {t('settings.workItemType.addRule')}
+        <button
+          className={`bp-settings__tab${activeTab === 'sourceBranchRules' ? ' bp-settings__tab--active' : ''}`}
+          onClick={() => dispatch({ type: 'SET_TAB', payload: 'sourceBranchRules' })}
+        >
+          {t('settings.section.sourceBranchRules')}
         </button>
-      </Section>
+        <button
+          className={`bp-settings__tab${activeTab === 'workItemTypeRules' ? ' bp-settings__tab--active' : ''}`}
+          onClick={() => dispatch({ type: 'SET_TAB', payload: 'workItemTypeRules' })}
+        >
+          {t('settings.section.workItemTypeRules')}
+        </button>
+      </div>
+
+      {/* ── Tab content ── */}
+      <div className="bp-settings__tab-content">
+        {/* ── General Tab ── */}
+        {activeTab === 'general' && (
+          <>
+            <div className="bp-settings__field">
+              <label>{t('settings.general.language')}</label>
+              <select
+                className="bp-settings__input bp-settings__input--narrow"
+                value={config.general.language || 'en'}
+                onChange={(e) => {
+                  const newLang = e.target.value as 'en' | 'it';
+                  setGeneral('language', newLang);
+                  initLocale(newLang);
+                }}
+              >
+                <option value="en">{t('settings.general.language.en')}</option>
+                <option value="it">{t('settings.general.language.it')}</option>
+              </select>
+            </div>
+
+            <label className="bp-settings__checkbox-label">
+              <input
+                type="checkbox"
+                checked={config.general.lowercase}
+                onChange={(e) => setGeneral('lowercase', e.target.checked)}
+              />
+              {t('settings.general.lowercase')}
+            </label>
+
+            <div className="bp-settings__field">
+              <label>{t('settings.general.nonAlnumReplacement')}</label>
+              <input
+                type="text"
+                className="bp-settings__input bp-settings__input--narrow bp-settings__input--mono"
+                maxLength={1}
+                value={config.general.nonAlnumReplacement}
+                onChange={(e) => setGeneral('nonAlnumReplacement', e.target.value)}
+              />
+            </div>
+
+            <div className="bp-settings__field">
+              <label>{t('settings.general.maxLength')}</label>
+              <input
+                type="number"
+                className="bp-settings__input bp-settings__input--narrow"
+                min={20}
+                max={250}
+                value={config.general.maxLength}
+                onChange={(e) => setGeneral('maxLength', Number(e.target.value))}
+              />
+            </div>
+
+            <label className="bp-settings__checkbox-label">
+              <input
+                type="checkbox"
+                checked={config.general.allowManualNameOverride}
+                onChange={(e) => setGeneral('allowManualNameOverride', e.target.checked)}
+              />
+              {t('settings.general.allowManualOverride')}
+            </label>
+
+            <h3 style={{ marginTop: 20, marginBottom: 10 }}>{t('settings.section.defaults')}</h3>
+            <div className="bp-settings__field">
+              <label>{t('settings.defaults.template')}</label>
+              <input
+                type="text"
+                className="bp-settings__input bp-settings__input--wide bp-settings__input--mono"
+                value={config.defaults.template}
+                onChange={(e) => setDefaultTemplate(e.target.value)}
+              />
+              <span className="bp-hint">{t('settings.defaults.template.hint')}</span>
+            </div>
+          </>
+        )}
+
+        {/* ── Source Branch Rules Tab ── */}
+        {activeTab === 'sourceBranchRules' && (
+          <>
+            <div className="bp-settings__rules">
+              {config.rulesBySourceBranch.map((rule, i) => (
+                <SourceBranchRuleCard
+                  key={i}
+                  index={i}
+                  rule={rule}
+                  onChange={(updated) => updateSourceBranchRule(i, updated)}
+                  onRemove={() => removeSourceBranchRule(i)}
+                />
+              ))}
+            </div>
+            <button className="bp-btn bp-btn--secondary bp-btn--small bp-settings__add-rule-btn" onClick={addSourceBranchRule}>
+              + {t('settings.sourceBranch.addRule')}
+            </button>
+          </>
+        )}
+
+        {/* ── Work Item Type Rules Tab ── */}
+        {activeTab === 'workItemTypeRules' && (
+          <>
+            <div className="bp-settings__rules">
+              {config.rulesByWorkItemType.map((rule, i) => (
+                <WorkItemTypeRuleCard
+                  key={i}
+                  index={i}
+                  rule={rule}
+                  workItemTypes={state.workItemTypes}
+                  onChange={(updated) => updateWorkItemTypeRule(i, updated)}
+                  onRemove={() => removeWorkItemTypeRule(i)}
+                />
+              ))}
+            </div>
+            <button className="bp-btn bp-btn--secondary bp-btn--small bp-settings__add-rule-btn" onClick={addWorkItemTypeRule}>
+              + {t('settings.workItemType.addRule')}
+            </button>
+          </>
+        )}
+      </div>
 
       {/* ── Toast ── */}
       {state.toast && (
@@ -453,37 +499,6 @@ const SettingsHub: React.FC = () => {
           {state.toast.message}
         </div>
       )}
-    </div>
-  );
-};
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-interface SectionProps {
-  title: string;
-  id: string;
-  openSections: Set<string>;
-  dispatch: React.Dispatch<Action>;
-  children: React.ReactNode;
-}
-
-const Section: React.FC<SectionProps> = ({ title, id, openSections, dispatch, children }) => {
-  const isOpen = openSections.has(id);
-  return (
-    <div className="bp-settings__section">
-      <div
-        className="bp-settings__section-header"
-        onClick={() => dispatch({ type: 'TOGGLE_SECTION', payload: id })}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && dispatch({ type: 'TOGGLE_SECTION', payload: id })}
-      >
-        <h2>{title}</h2>
-        <span className={`bp-chevron${isOpen ? ' bp-chevron--open' : ''}`}>▼</span>
-      </div>
-      <div className={`bp-settings__section-body${isOpen ? '' : ' bp-settings__section-body--hidden'}`}>
-        {children}
-      </div>
     </div>
   );
 };
@@ -575,9 +590,10 @@ interface WorkItemTypeRuleCardProps {
   rule: WorkItemTypeRule;
   onChange: (rule: WorkItemTypeRule) => void;
   onRemove: () => void;
+  workItemTypes: WorkItemTypeInfo[];
 }
 
-const WorkItemTypeRuleCard: React.FC<WorkItemTypeRuleCardProps> = ({ index, rule, onChange, onRemove }) => {
+const WorkItemTypeRuleCard: React.FC<WorkItemTypeRuleCardProps> = ({ index, rule, onChange, onRemove, workItemTypes }) => {
   const set = <K extends keyof WorkItemTypeRule>(key: K, value: WorkItemTypeRule[K]) =>
     onChange({ ...rule, [key]: value });
 
@@ -592,9 +608,14 @@ const WorkItemTypeRuleCard: React.FC<WorkItemTypeRuleCardProps> = ({ index, rule
 
       <div className="bp-settings__field">
         <label>{t('settings.workItemType.type')}</label>
-        <input type="text" className="bp-settings__input bp-settings__input--wide"
-          value={rule.workItemType} onChange={(e) => set('workItemType', e.target.value)}
-          placeholder="Bug" />
+        <select className="bp-settings__select bp-settings__select--wide"
+          value={rule.workItemType}
+          onChange={(e) => set('workItemType', e.target.value)}>
+          <option value="">{t('settings.workItemType.selectType')}</option>
+          {workItemTypes.map((wit) => (
+            <option key={wit.name} value={wit.name}>{wit.name}</option>
+          ))}
+        </select>
       </div>
 
       <div className="bp-settings__field">
