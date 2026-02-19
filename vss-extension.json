@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "publisher": "felicitomarket",
   "description": "Create branches from Work Items with smart naming rules, automatic linking, and full configurability.",
-  "public": false,
+  "public": true,
   "categories": ["Azure Boards"],
   "tags": ["branch", "git", "work item", "devops", "branching strategy"],
   "targets": [
@@ -16,13 +16,18 @@
   "icons": {
     "default": "assets/icons/logo.png"
   },
+  "content": {
+    "details": {
+      "path": "README.md"
+    }
+  },
   "screenshots": [],
   "links": {
     "getstarted": {
-      "uri": "https://github.com/YOUR_ORG/branch-pilot#readme"
+      "uri": "https://github.com/felicitomarket/branch-pilot#readme"
     },
     "support": {
-      "uri": "https://github.com/YOUR_ORG/branch-pilot/issues"
+      "uri": "https://github.com/felicitomarket/branch-pilot/issues"
     }
   },
   "branding": {
@@ -42,9 +47,9 @@
         "ms.vss-work-web.work-item-context-menu"
       ],
       "properties": {
-        "text": "BranchPilot: Create branch",
+        "text": "New branch... (BranchPilot)",
         "title": "Create a new branch linked to this Work Item",
-        "toolbarText": "Create branch",
+        "toolbarText": "New branch...",
         "icon": "assets/icons/branch-action.png",
         "group": "actions",
         "uri": "dist/action/index.html"
@@ -70,7 +75,7 @@
         "name": "BranchPilot",
         "order": 100,
         "uri": "dist/settings/index.html",
-        "icon": "assets/icons/logo.png"
+        "icon": "assets/icons/branch-action.png"
       }
     }
   ],

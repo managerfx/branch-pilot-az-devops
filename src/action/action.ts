@@ -1,6 +1,7 @@
 import * as SDK from 'azure-devops-extension-sdk';
 import {
   IHostPageLayoutService,
+  IWorkItemFormService,
   ServiceIds,
 } from '../common/sdk-services';
 import { ModalConfig } from '../common/types';
@@ -39,17 +40,38 @@ async function initAction(): Promise<void> {
   SDK.register(actionContributionId, {
     /**
      * Called by Azure DevOps when the user clicks "BranchPilot: Create branch"
-     * in the Work Item context menu.
+     * in the Work Item context menu or the work item form's "..." overflow menu.
      *
-     * Field names from the XDM instanceContext (verified from browser console):
-     *   workItemId, workItemTypeName, currentProjectGuid, currentProjectName
+     * When invoked from a list/board context menu the context carries workItemId.
+     * When invoked from a work item FORM (newly saved), the context may still hold
+     * the pre-save ID of 0 — in that case we fall back to IWorkItemFormService.getId().
      */
     execute: async (context: WorkItemMenuActionContext) => {
       logger.info('Action executed', { context });
 
       try {
-        const workItemId: number =
+        // Primary: take ID from the action context (list/board invocation)
+        let workItemId: number =
           context?.workItemId ?? (context as any)?.id ?? 0;
+
+        // Fallback: when invoked from the WI form's "..." menu, the context may
+        // carry the stale pre-save ID (0 for a newly created WI). Use the form
+        // service to get the live ID of the currently open work item.
+        if (!workItemId || workItemId <= 0) {
+          try {
+            const formService = await SDK.getService<IWorkItemFormService>(
+              ServiceIds.WorkItemFormService,
+            );
+            const formId = await formService.getId();
+            const isNew = await formService.isNew();
+            logger.info('WorkItemFormService fallback', { formId, isNew });
+            if (formId > 0 && !isNew) {
+              workItemId = formId;
+            }
+          } catch {
+            // Form service is not available (e.g. invoked from a list view with no open form)
+          }
+        }
 
         const layoutService = await SDK.getService<IHostPageLayoutService>(
           ServiceIds.HostPageLayoutService,
@@ -74,7 +96,7 @@ async function initAction(): Promise<void> {
         };
 
         layoutService.openPanel(dialogContributionId, {
-          title: 'BranchPilot: Create branch',
+          title: 'New branch (BranchPilot)',
           configuration: modalConfig,
         });
       } catch (err) {

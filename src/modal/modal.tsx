@@ -455,8 +455,8 @@ const CreateBranchModal: React.FC = () => {
         return;
       }
 
-      // Link branch to work item
-      await workItemService.addBranchLink(workItem!.id, projectId, selectedRepoId, branchName.trim());
+      // Link branch to work item (use result.branchName — may differ if _2/_3 suffix was added)
+      await workItemService.addBranchLink(workItem!.id, projectId, selectedRepoId, result.branchName!);
 
       // Optional: update work item state
       if (rulesEngineRef.current) {

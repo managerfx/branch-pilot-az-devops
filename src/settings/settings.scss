@@ -114,6 +114,15 @@ body {
     min-height: 300px;
   }
 
+  &__tab-description {
+    font-size: 13px;
+    color: #605e5c;
+    line-height: 1.55;
+    margin: 0 0 4px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #f3f2f1;
+  }
+
   &__json-section {
     background: white;
     border: 1px solid #e1dfdd;
@@ -135,6 +144,8 @@ body {
     }
 
     label {
+      display: inline-flex;
+      align-items: center;
       font-size: 12px;
       font-weight: 600;
       color: #201f1e;
@@ -344,4 +355,68 @@ body {
 @keyframes bp-fadein {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Info tooltip ── */
+.bp-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  cursor: help;
+  vertical-align: middle;
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 600;
+    color: white;
+    background: #0078d4;
+    border-radius: 50%;
+    line-height: 1;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  &__content {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #323130;
+    color: #faf9f8;
+    font-size: 12px;
+    font-weight: 400;
+    padding: 8px 12px;
+    border-radius: 2px;
+    white-space: pre-line;
+    width: 280px;
+    line-height: 1.6;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+
+    // Arrow
+    &::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #323130;
+    }
+  }
+
+  &:hover &__content,
+  &:focus-within &__content {
+    opacity: 1;
+  }
 }

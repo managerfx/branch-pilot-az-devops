@@ -96,7 +96,33 @@ export const it: Partial<Record<I18nKey, string>> = {
   'settings.repoOverrides.repoName': 'Nome o ID repository',
   'settings.repoOverrides.template': 'Template',
 
+  // ── Settings tab descriptions ───────────────────────────────────────
+  'settings.tab.general.description':
+    'Impostazioni di formattazione globali applicate a tutti i nomi branch generati. Il template predefinito viene usato come fallback quando nessuna regola specifica corrisponde.',
+  'settings.tab.sourceBranch.description':
+    'Regole abbinate al branch sorgente selezionato dall\'utente nel dialogo. Valutate per prime — massima priorità. Usa pattern glob o regex per branch come "hotfix/*" o "release/x.y" e applica prefisso e template dedicati.',
+  'settings.tab.workItemType.description':
+    'Regole abbinate al tipo di work item (Bug, User Story, Task, …). Applicate quando nessuna regola per branch sorgente corrisponde. Definisci prefisso e template per ogni tipo per generare nomi coerenti automaticamente.',
+
+  // ── Field tooltips ──────────────────────────────────────────────────
+  'settings.tooltip.nonAlnumReplacement':
+    'I caratteri nel titolo del work item che non sono lettere o cifre vengono sostituiti con questo carattere.\nScelte comuni: "-" o "_".\nLascia vuoto per eliminarli.',
+  'settings.tooltip.maxLength':
+    'I nomi branch più lunghi di questo limite generano un avviso nel dialogo. Git supporta fino a 250 caratteri, ma nomi più corti sono più leggibili.',
+  'settings.tooltip.allowManualOverride':
+    'Se abilitato, gli utenti possono modificare il nome branch generato prima di crearlo. Disabilita per imporre una denominazione uniforme nel team.',
+  'settings.tooltip.matchType':
+    'Glob: pattern wildcard semplici, es. "hotfix/*" o "main".\nRegex: espressioni regolari complete, es. "^release/\\d+\\.\\d+$".\nEntrambi vengono testati sul nome completo del branch sorgente.',
+  'settings.tooltip.pattern':
+    'Pattern confrontato con il nome del branch sorgente selezionato.\nEsempio glob: "hotfix/*" corrisponde a "hotfix/qualsiasi".\nEsempio regex: "^release/.*" corrisponde a qualsiasi branch che inizia con "release/".',
+  'settings.tooltip.prefix':
+    'Testo statico anteposto al nome generato.\nEsempio: prefisso "hotfix/" + template "{prefix}{wi.id}-{wi.title}" → "hotfix/1234-fix-login".\nLascia vuoto se il template contiene già il percorso desiderato.',
+  'settings.tooltip.template':
+    'Template per il nome branch. Token supportati:\n· {wi.id} → ID work item (es. 1234)\n· {wi.title} → titolo, normalizzato e in minuscolo\n· {wi.type} → tipo work item (Bug, Story…)\n· {wi.state} → stato corrente del work item\n· {prefix} → valore del campo Prefisso sopra',
+  'settings.tooltip.stateOnCreate':
+    'Quando il branch viene creato, il work item collegato passerà automaticamente a questo stato. Inserisci il nome esatto dello stato del tuo processo (es. "Attivo", "In Corso", "Committed").',
+
   // ── Action ─────────────────────────────────────────────────────────
-  'action.label': 'BranchPilot: Crea branch',
+  'action.label': 'Nuovo branch... (BranchPilot)',
   'action.title': 'Crea un nuovo branch collegato a questo Work Item',
 };

@@ -97,6 +97,15 @@ function reducer(state: SettingsState, action: Action): SettingsState {
   }
 }
 
+// ─── InfoTooltip ──────────────────────────────────────────────────────────────
+
+const InfoTooltip: React.FC<{ text: string }> = ({ text }) => (
+  <span className="bp-tooltip" aria-label={text}>
+    <span className="bp-tooltip__icon" aria-hidden="true">i</span>
+    <span className="bp-tooltip__content" role="tooltip">{text}</span>
+  </span>
+);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 let configServiceRef: ConfigService | null = null;
@@ -380,6 +389,8 @@ const SettingsHub: React.FC = () => {
         {/* ── General Tab ── */}
         {activeTab === 'general' && (
           <>
+            <p className="bp-settings__tab-description">{t('settings.tab.general.description')}</p>
+
             <div className="bp-settings__field">
               <label>{t('settings.general.language')}</label>
               <select
@@ -406,7 +417,10 @@ const SettingsHub: React.FC = () => {
             </label>
 
             <div className="bp-settings__field">
-              <label>{t('settings.general.nonAlnumReplacement')}</label>
+              <label>
+                {t('settings.general.nonAlnumReplacement')}
+                <InfoTooltip text={t('settings.tooltip.nonAlnumReplacement')} />
+              </label>
               <input
                 type="text"
                 className="bp-settings__input bp-settings__input--narrow bp-settings__input--mono"
@@ -417,7 +431,10 @@ const SettingsHub: React.FC = () => {
             </div>
 
             <div className="bp-settings__field">
-              <label>{t('settings.general.maxLength')}</label>
+              <label>
+                {t('settings.general.maxLength')}
+                <InfoTooltip text={t('settings.tooltip.maxLength')} />
+              </label>
               <input
                 type="number"
                 className="bp-settings__input bp-settings__input--narrow"
@@ -435,11 +452,15 @@ const SettingsHub: React.FC = () => {
                 onChange={(e) => setGeneral('allowManualNameOverride', e.target.checked)}
               />
               {t('settings.general.allowManualOverride')}
+              <InfoTooltip text={t('settings.tooltip.allowManualOverride')} />
             </label>
 
             <h3 style={{ marginTop: 20, marginBottom: 10 }}>{t('settings.section.defaults')}</h3>
             <div className="bp-settings__field">
-              <label>{t('settings.defaults.template')}</label>
+              <label>
+                {t('settings.defaults.template')}
+                <InfoTooltip text={t('settings.tooltip.template')} />
+              </label>
               <input
                 type="text"
                 className="bp-settings__input bp-settings__input--wide bp-settings__input--mono"
@@ -454,6 +475,7 @@ const SettingsHub: React.FC = () => {
         {/* ── Source Branch Rules Tab ── */}
         {activeTab === 'sourceBranchRules' && (
           <>
+            <p className="bp-settings__tab-description">{t('settings.tab.sourceBranch.description')}</p>
             <div className="bp-settings__rules">
               {config.rulesBySourceBranch.map((rule, i) => (
                 <SourceBranchRuleCard
@@ -474,6 +496,7 @@ const SettingsHub: React.FC = () => {
         {/* ── Work Item Type Rules Tab ── */}
         {activeTab === 'workItemTypeRules' && (
           <>
+            <p className="bp-settings__tab-description">{t('settings.tab.workItemType.description')}</p>
             <div className="bp-settings__rules">
               {config.rulesByWorkItemType.map((rule, i) => (
                 <WorkItemTypeRuleCard
@@ -532,7 +555,10 @@ const SourceBranchRuleCard: React.FC<SourceBranchRuleCardProps> = ({ index, rule
       </div>
 
       <div className="bp-settings__field">
-        <label>{t('settings.sourceBranch.matchType')}</label>
+        <label>
+          {t('settings.sourceBranch.matchType')}
+          <InfoTooltip text={t('settings.tooltip.matchType')} />
+        </label>
         <select className="bp-settings__select" value={rule.matchType}
           onChange={(e) => set('matchType', e.target.value as 'glob' | 'regex')}>
           <option value="glob">Glob</option>
@@ -541,21 +567,30 @@ const SourceBranchRuleCard: React.FC<SourceBranchRuleCardProps> = ({ index, rule
       </div>
 
       <div className="bp-settings__field">
-        <label>{t('settings.sourceBranch.match')}</label>
+        <label>
+          {t('settings.sourceBranch.match')}
+          <InfoTooltip text={t('settings.tooltip.pattern')} />
+        </label>
         <input type="text" className="bp-settings__input bp-settings__input--wide bp-settings__input--mono"
           value={rule.match} onChange={(e) => set('match', e.target.value)}
           placeholder={rule.matchType === 'glob' ? 'hotfix/*' : '^hotfix(/.*)?$'} />
       </div>
 
       <div className="bp-settings__field">
-        <label>{t('settings.sourceBranch.prefix')}</label>
+        <label>
+          {t('settings.sourceBranch.prefix')}
+          <InfoTooltip text={t('settings.tooltip.prefix')} />
+        </label>
         <input type="text" className="bp-settings__input bp-settings__input--wide bp-settings__input--mono"
           value={rule.prefix} onChange={(e) => set('prefix', e.target.value)}
           placeholder="hotfix/" />
       </div>
 
       <div className="bp-settings__field bp-settings__rule-card--full">
-        <label>{t('settings.sourceBranch.template')}</label>
+        <label>
+          {t('settings.sourceBranch.template')}
+          <InfoTooltip text={t('settings.tooltip.template')} />
+        </label>
         <input type="text" className="bp-settings__input bp-settings__input--wide bp-settings__input--mono"
           value={rule.template} onChange={(e) => set('template', e.target.value)}
           placeholder="{prefix}{wi.id}-{wi.title}" />
@@ -567,6 +602,7 @@ const SourceBranchRuleCard: React.FC<SourceBranchRuleCardProps> = ({ index, rule
           <input type="checkbox" checked={rule.workItemState?.enabled ?? false}
             onChange={(e) => set('workItemState', { enabled: e.target.checked, state: rule.workItemState?.state ?? '' })} />
           {t('settings.sourceBranch.stateEnabled')}
+          <InfoTooltip text={t('settings.tooltip.stateOnCreate')} />
         </label>
       </div>
 
@@ -619,14 +655,20 @@ const WorkItemTypeRuleCard: React.FC<WorkItemTypeRuleCardProps> = ({ index, rule
       </div>
 
       <div className="bp-settings__field">
-        <label>{t('settings.workItemType.prefix')}</label>
+        <label>
+          {t('settings.workItemType.prefix')}
+          <InfoTooltip text={t('settings.tooltip.prefix')} />
+        </label>
         <input type="text" className="bp-settings__input bp-settings__input--wide bp-settings__input--mono"
           value={rule.prefix ?? ''} onChange={(e) => set('prefix', e.target.value)}
           placeholder="bugfix/" />
       </div>
 
       <div className="bp-settings__field bp-settings__rule-card--full">
-        <label>{t('settings.workItemType.template')}</label>
+        <label>
+          {t('settings.workItemType.template')}
+          <InfoTooltip text={t('settings.tooltip.template')} />
+        </label>
         <input type="text" className="bp-settings__input bp-settings__input--wide bp-settings__input--mono"
           value={rule.template} onChange={(e) => set('template', e.target.value)}
           placeholder="{prefix}{wi.id}-{wi.title}" />
@@ -638,6 +680,7 @@ const WorkItemTypeRuleCard: React.FC<WorkItemTypeRuleCardProps> = ({ index, rule
           <input type="checkbox" checked={rule.workItemState?.enabled ?? false}
             onChange={(e) => set('workItemState', { enabled: e.target.checked, state: rule.workItemState?.state ?? '' })} />
           {t('settings.workItemType.stateEnabled')}
+          <InfoTooltip text={t('settings.tooltip.stateOnCreate')} />
         </label>
       </div>
 

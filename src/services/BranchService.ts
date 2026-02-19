@@ -13,13 +13,45 @@ export class BranchService {
   constructor(private repoService: RepoService) {}
 
   /**
+   * Resolves a unique branch name by checking existence and appending -2, -3, …
+   * until a free name is found. Uses the in-memory branch cache (fast).
+   */
+  async resolveUniqueBranchName(
+    projectId: string,
+    repoId: string,
+    branchName: string,
+  ): Promise<string> {
+    const exists = await this.repoService.branchExists(projectId, repoId, branchName);
+    if (!exists) return branchName;
+
+    // Strip existing -N suffix to find the base name
+    const match = branchName.match(/^(.+)-(\d+)$/);
+    const base = match ? match[1] : branchName;
+    let counter = match ? parseInt(match[2], 10) + 1 : 2;
+
+    while (counter <= 100) {
+      const candidate = `${base}-${counter}`;
+      const candidateExists = await this.repoService.branchExists(projectId, repoId, candidate);
+      if (!candidateExists) return candidate;
+      counter++;
+    }
+
+    // Safety fallback (extremely unlikely)
+    return `${base}-${Date.now()}`;
+  }
+
+  /**
    * Creates a new Git branch based on the given source branch.
+   * Automatically resolves name conflicts by appending -2, -3, …
    *
    * Returns a CreateBranchResult indicating success or failure.
-   * On 409/conflict, suggests an alternative name.
    */
   async createBranch(params: CreateBranchParams): Promise<CreateBranchResult> {
-    const { repoId, projectId, branchName, sourceBranchName, sourceObjectId, workItemId } = params;
+    const { repoId, projectId, sourceBranchName, sourceObjectId, workItemId } = params;
+    let { branchName } = params;
+
+    // Resolve to a unique name before attempting creation
+    branchName = await this.resolveUniqueBranchName(projectId, repoId, branchName);
 
     logger.info('Creating branch', { repoId, branchName, sourceBranchName });
 

@@ -12,6 +12,8 @@
 export const ServiceIds = {
   ExtensionDataService: 'ms.vss-features.extension-data-service',
   HostPageLayoutService: 'ms.vss-features.host-page-layout-service',
+  /** Available when the action is invoked from within a work item form (form's "..." menu). */
+  WorkItemFormService: 'ms.vss-work-web.work-item-form',
 } as const;
 
 // ─── Service interfaces ───────────────────────────────────────────────────────
@@ -76,3 +78,14 @@ export interface IExtensionDataService {
   getExtensionDataManager(extensionId: string, accessToken: string): Promise<IExtensionDataManager>;
 }
 
+/**
+ * Minimal subset of IWorkItemFormService used by the action handler.
+ * Only available when the action is invoked from within a work item form context
+ * (e.g. the form's "..." overflow menu). Will throw if called from a list view.
+ */
+export interface IWorkItemFormService {
+  /** Returns the ID of the active work item. Returns 0 if the work item has never been saved. */
+  getId(): Promise<number>;
+  /** Returns true if the active work item has never been saved (is new). */
+  isNew(): Promise<boolean>;
+}

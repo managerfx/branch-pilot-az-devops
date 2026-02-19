@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "branch-pilot-dev",
   "name": "BranchPilot (DEV)",
-  "version": "1.0.1",
+  "version": "1.0.6",
   "publisher": "felicitomarket",
   "description": "[DEV] BranchPilot – local dev server at https://localhost:3000",
   "public": false,
@@ -26,9 +26,9 @@
         "ms.vss-work-web.work-item-context-menu"
       ],
       "properties": {
-        "text": "BranchPilot: Create branch",
+        "text": "New branch... (BranchPilot)",
         "title": "Create a new branch linked to this Work Item",
-        "toolbarText": "Create branch",
+        "toolbarText": "New branch...",
         "icon": "assets/icons/branch-action.png",
         "group": "actions",
         "uri": "https://localhost:3000/action/index.html"
@@ -54,7 +54,7 @@
         "name": "BranchPilot (DEV)",
         "order": 100,
         "uri": "https://localhost:3000/settings/index.html",
-        "icon": "assets/icons/logo.png"
+        "icon": "assets/icons/branch-action.png"
       }
     }
   ],
