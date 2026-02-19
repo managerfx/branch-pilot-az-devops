@@ -1,6 +1,6 @@
 import { getClient } from 'azure-devops-extension-api';
 import { GitRestClient } from 'azure-devops-extension-api/Git';
-import { BranchInfo, RepoInfo } from '../common/types';
+import { BranchInfo, RepoInfo, TagInfo } from '../common/types';
 import { stripRefsHeads } from '../common/utils';
 import { logger } from './Logger';
 
@@ -11,6 +11,7 @@ import { logger } from './Logger';
 export class RepoService {
   private reposCache: Map<string, RepoInfo[]> = new Map();
   private branchesCache: Map<string, BranchInfo[]> = new Map();
+  private tagsCache: Map<string, TagInfo[]> = new Map();
 
   /**
    * Returns a list of repositories in the given project.
@@ -81,6 +82,34 @@ export class RepoService {
   }
 
   /**
+   * Returns a list of tags for the given repository.
+   * Results are cached per `${projectId}/${repoId}`.
+   */
+  async getTags(projectId: string, repoId: string): Promise<TagInfo[]> {
+    const cacheKey = `tags/${projectId}/${repoId}`;
+    if (this.tagsCache.has(cacheKey)) {
+      return this.tagsCache.get(cacheKey)!;
+    }
+
+    try {
+      const client = getClient(GitRestClient);
+      const refs = await client.getRefs(repoId, projectId, 'tags/', undefined, undefined, undefined, undefined, undefined, undefined);
+
+      const result: TagInfo[] = refs.map((r) => ({
+        name: r.name!.startsWith('refs/tags/') ? r.name!.slice('refs/tags/'.length) : r.name!,
+        objectId: r.objectId!,
+      }));
+
+      this.tagsCache.set(cacheKey, result);
+      logger.info('Tags loaded', { repoId, count: result.length });
+      return result;
+    } catch (err) {
+      logger.error('Failed to load tags', { repoId, error: err });
+      return [];
+    }
+  }
+
+  /**
    * Returns the objectId of a specific branch.
    */
   async getBranchObjectId(
@@ -116,6 +145,7 @@ export class RepoService {
   clearCaches(): void {
     this.reposCache.clear();
     this.branchesCache.clear();
+    this.tagsCache.clear();
   }
 }
 

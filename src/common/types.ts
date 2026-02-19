@@ -101,6 +101,11 @@ export interface BranchInfo {
   objectId: string;
 }
 
+export interface TagInfo {
+  name: string;
+  objectId: string;
+}
+
 export interface ResolvedRule {
   template: string;
   prefix: string;

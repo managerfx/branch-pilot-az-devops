@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useReducer, useRef } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import * as SDK from 'azure-devops-extension-sdk';
 
-import { BranchInfo, ModalConfig, RepoInfo, WorkItemContext } from '../common/types';
+import { BranchInfo, ModalConfig, RepoInfo, TagInfo, WorkItemContext } from '../common/types';
 import { ConfigService } from '../services/ConfigService';
 import { WorkItemService } from '../services/WorkItemService';
 import { RepoService } from '../services/RepoService';
@@ -28,16 +28,19 @@ interface ModalState {
   workItem: WorkItemContext | null;
   repos: RepoInfo[];
   branches: BranchInfo[];
+  tags: TagInfo[];
 
   // User selections
   selectedRepoId: string;
   selectedBaseBranch: string;
+  selectedBaseObjectId: string;
   branchName: string;
   manualOverride: boolean;
 
   // UI state
   loadingRepos: boolean;
   loadingBranches: boolean;
+  loadingTags: boolean;
   creating: boolean;
   successMessage: string | null;
   createError: string | null;
@@ -55,8 +58,9 @@ type Action =
   | { type: 'INIT_SUCCESS'; payload: { projectId: string; workItem: WorkItemContext; repos: RepoInfo[]; allowManualOverride: boolean } }
   | { type: 'INIT_ERROR'; payload: string }
   | { type: 'SET_REPO'; payload: string }
-  | { type: 'BRANCHES_LOADED'; payload: { branches: BranchInfo[]; defaultBranch: string } }
-  | { type: 'SET_BASE_BRANCH'; payload: string }
+  | { type: 'BRANCHES_LOADED'; payload: { branches: BranchInfo[]; defaultBranch: string; defaultObjectId: string } }
+  | { type: 'TAGS_LOADED'; payload: TagInfo[] }
+  | { type: 'SET_BASE_REF'; payload: { name: string; objectId: string } }
   | { type: 'SET_BRANCH_NAME'; payload: string }
   | { type: 'SET_BRANCH_COMPUTED'; payload: { name: string; warning: string | null; stateHint: string | null } }
   | { type: 'CREATE_START' }
@@ -73,12 +77,15 @@ const initialState: ModalState = {
   workItem: null,
   repos: [],
   branches: [],
+  tags: [],
   selectedRepoId: '',
   selectedBaseBranch: '',
+  selectedBaseObjectId: '',
   branchName: '',
   manualOverride: false,
   loadingRepos: false,
   loadingBranches: false,
+  loadingTags: false,
   creating: false,
   successMessage: null,
   createError: null,
@@ -109,9 +116,12 @@ function reducer(state: ModalState, action: Action): ModalState {
         ...state,
         selectedRepoId: action.payload,
         selectedBaseBranch: '',
+        selectedBaseObjectId: '',
         branches: [],
+        tags: [],
         branchName: '',
         loadingBranches: true,
+        loadingTags: true,
         branchNameError: null,
         branchNameWarning: null,
         stateHint: null,
@@ -121,10 +131,13 @@ function reducer(state: ModalState, action: Action): ModalState {
         ...state,
         branches: action.payload.branches,
         selectedBaseBranch: action.payload.defaultBranch,
+        selectedBaseObjectId: action.payload.defaultObjectId,
         loadingBranches: false,
       };
-    case 'SET_BASE_BRANCH':
-      return { ...state, selectedBaseBranch: action.payload };
+    case 'TAGS_LOADED':
+      return { ...state, tags: action.payload, loadingTags: false };
+    case 'SET_BASE_REF':
+      return { ...state, selectedBaseBranch: action.payload.name, selectedBaseObjectId: action.payload.objectId };
     case 'SET_BRANCH_NAME':
       return { ...state, branchName: action.payload, manualOverride: true };
     case 'SET_BRANCH_COMPUTED':
@@ -178,31 +191,27 @@ function formatRelativeTime(dateStr?: string): string {
 
 /** Returns a work item icon component - uses ADO icon URL if available, fallback to colored square */
 function WorkItemIcon({ type, iconUrl, color }: { type: string; iconUrl?: string; color?: string }) {
-  // Use ADO icon if available
   if (iconUrl) {
     return (
-      <img 
-        className="bp-wi-icon" 
-        src={iconUrl} 
+      <img
+        className="bp-wi-icon"
+        src={iconUrl}
         alt={type}
-        width="16" 
-        height="16" 
+        width="16"
+        height="16"
         style={{ objectFit: 'contain' }}
       />
     );
   }
-  
-  // Fallback: colored square based on type color or default color mapping
   const fallbackColor = color ? `#${color}` : getDefaultTypeColor(type);
   return (
-    <div 
+    <div
       className="bp-wi-icon bp-wi-icon--fallback"
       style={{ backgroundColor: fallbackColor }}
     />
   );
 }
 
-/** Returns a default color for common work item types */
 function getDefaultTypeColor(type: string): string {
   const t = type?.toLowerCase() ?? '';
   if (t.includes('bug')) return '#cc293d';
@@ -212,6 +221,328 @@ function getDefaultTypeColor(type: string): string {
   if (t.includes('epic')) return '#ff7b00';
   return '#605e5c';
 }
+
+// ─── SearchableSelect ─────────────────────────────────────────────────────────
+
+interface SearchableSelectOption {
+  value: string;
+  label: string;
+}
+
+interface SearchableSelectProps {
+  options: SearchableSelectOption[];
+  value: string;
+  onSelect: (value: string) => void;
+  placeholder?: string;
+  filterPlaceholder?: string;
+  noOptionsText?: string;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+}
+
+const SearchableSelect: React.FC<SearchableSelectProps> = ({
+  options,
+  value,
+  onSelect,
+  placeholder = '',
+  filterPlaceholder = '',
+  noOptionsText = '',
+  disabled = false,
+  icon,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setFilter('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  const handleToggle = () => {
+    if (disabled) return;
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 2,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    }
+    setOpen((o) => !o);
+    setFilter('');
+  };
+
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(filter.toLowerCase()),
+  );
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? '';
+
+  return (
+    <div className="bp-picker" ref={containerRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`bp-picker__trigger${!value ? ' bp-picker__trigger--placeholder' : ''}`}
+        disabled={disabled}
+        onClick={handleToggle}
+      >
+        {icon && <span className="bp-picker__trigger-icon">{icon}</span>}
+        <span className="bp-picker__trigger-value">{selectedLabel || placeholder}</span>
+        <svg className="bp-picker__chevron" width="12" height="12" viewBox="0 0 12 12">
+          <path fill="currentColor" d="M6 8L1 3h10z" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="bp-picker__dropdown" style={dropdownStyle}>
+          <div className="bp-picker__search-row">
+            <svg className="bp-picker__search-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z" />
+            </svg>
+            <input
+              ref={inputRef}
+              type="text"
+              className="bp-picker__search-input"
+              placeholder={filterPlaceholder}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </div>
+          <div className="bp-picker__list">
+            {filtered.length === 0 ? (
+              <div className="bp-picker__empty">{noOptionsText}</div>
+            ) : (
+              filtered.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  className={`bp-picker__item${o.value === value ? ' bp-picker__item--selected' : ''}`}
+                  onClick={() => { onSelect(o.value); setOpen(false); setFilter(''); }}
+                >
+                  <span className="bp-picker__item-check-area">
+                    {o.value === value && (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                        <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 0 0 .28 7.695l3 3a1 1 0 0 0 1.414 0l7-7A1 1 0 0 0 10.28 2.28z" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="bp-picker__item-label">{o.label}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── BranchTagPicker ──────────────────────────────────────────────────────────
+
+type PickerTab = 'branches' | 'tags';
+
+interface BranchTagPickerProps {
+  branches: BranchInfo[];
+  tags: TagInfo[];
+  defaultBranch?: string;
+  value: string;
+  onSelect: (name: string, objectId: string) => void;
+  disabled?: boolean;
+  loading?: boolean;
+}
+
+const BranchTagPicker: React.FC<BranchTagPickerProps> = ({
+  branches,
+  tags,
+  defaultBranch,
+  value,
+  onSelect,
+  disabled = false,
+  loading = false,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<PickerTab>('branches');
+  const [filter, setFilter] = useState('');
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setFilter('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  const handleToggle = () => {
+    if (disabled || loading) return;
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 2,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    }
+    setOpen((o) => !o);
+    setFilter('');
+  };
+
+  const handleTabChange = (newTab: PickerTab) => {
+    setTab(newTab);
+    setFilter('');
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const items = tab === 'branches' ? branches : tags;
+  const filtered = items.filter((item) =>
+    item.name.toLowerCase().includes(filter.toLowerCase()),
+  );
+
+  const filterPlaceholder = tab === 'branches'
+    ? t('modal.picker.filterBranches')
+    : t('modal.picker.filterTags');
+
+  const noItemsText = tab === 'branches'
+    ? t('modal.picker.noBranches')
+    : t('modal.picker.noTags');
+
+  // Sort branches: default first, then alphabetical
+  const sortedBranches = tab === 'branches'
+    ? [...filtered].sort((a, b) => {
+        if (a.name === defaultBranch) return -1;
+        if (b.name === defaultBranch) return 1;
+        return a.name.localeCompare(b.name);
+      })
+    : filtered;
+
+  return (
+    <div className="bp-picker" ref={containerRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`bp-picker__trigger${!value ? ' bp-picker__trigger--placeholder' : ''}`}
+        disabled={disabled}
+        onClick={handleToggle}
+      >
+        <svg className="bp-picker__trigger-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.492 2.492 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z" />
+        </svg>
+        <span className="bp-picker__trigger-value">{value || t('modal.field.basedOn.placeholder')}</span>
+        <svg className="bp-picker__chevron" width="12" height="12" viewBox="0 0 12 12">
+          <path fill="currentColor" d="M6 8L1 3h10z" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="bp-picker__dropdown" style={dropdownStyle}>
+          {/* Search */}
+          <div className="bp-picker__search-row">
+            <svg className="bp-picker__search-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z" />
+            </svg>
+            <input
+              ref={inputRef}
+              type="text"
+              className="bp-picker__search-input"
+              placeholder={filterPlaceholder}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </div>
+
+          {/* Tabs */}
+          <div className="bp-picker__tabs">
+            <button
+              type="button"
+              className={`bp-picker__tab${tab === 'branches' ? ' bp-picker__tab--active' : ''}`}
+              onClick={() => handleTabChange('branches')}
+            >
+              {t('modal.picker.tabBranches')}
+            </button>
+            <button
+              type="button"
+              className={`bp-picker__tab${tab === 'tags' ? ' bp-picker__tab--active' : ''}`}
+              onClick={() => handleTabChange('tags')}
+            >
+              {t('modal.picker.tabTags')}
+            </button>
+          </div>
+
+          {/* List */}
+          <div className="bp-picker__list">
+            {sortedBranches.length === 0 ? (
+              <div className="bp-picker__empty">{noItemsText}</div>
+            ) : (
+              sortedBranches.map((item) => (
+                <button
+                  key={item.name}
+                  type="button"
+                  className={`bp-picker__item${item.name === value ? ' bp-picker__item--selected' : ''}`}
+                  onClick={() => { onSelect(item.name, item.objectId); setOpen(false); setFilter(''); }}
+                >
+                  <span className="bp-picker__item-check-area">
+                    {item.name === value && (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                        <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 0 0 .28 7.695l3 3a1 1 0 0 0 1.414 0l7-7A1 1 0 0 0 10.28 2.28z" />
+                      </svg>
+                    )}
+                  </span>
+                  {tab === 'branches' ? (
+                    <svg className="bp-picker__item-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                      <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.492 2.492 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="bp-picker__item-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M7.05 1.5L1.5 7.05a.75.75 0 0 0 0 1.06l6.44 6.44a.75.75 0 0 0 1.06 0l5.55-5.55a.75.75 0 0 0 0-1.06L8.11 1.5A.75.75 0 0 0 7.05 1.5zM6 6a1 1 0 1 1 2 0 1 1 0 0 1-2 0z" />
+                    </svg>
+                  )}
+                  <span className="bp-picker__item-label">{item.name}</span>
+                  {tab === 'branches' && item.name === defaultBranch && (
+                    <span className="bp-picker__item-badge">Default</span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Services (instantiated once) ───────────────────────────────────────────
 
@@ -234,24 +565,20 @@ const CreateBranchModal: React.FC = () => {
     async function init() {
       try {
         console.log('[BranchPilot] Starting SDK init...');
-        
+
         await SDK.init({ loaded: false });
         console.log('[BranchPilot] SDK init completed, waiting for ready...');
-        
-        // CRITICAL: Wait for SDK to be fully ready before making API calls
-        // This ensures the XDM handshake is complete
-        // Add timeout in case it hangs due to double SDK loading
+
         await Promise.race([
           SDK.ready(),
-          new Promise((_, reject) => 
+          new Promise((_, reject) =>
             setTimeout(() => reject(new Error('SDK.ready() timeout after 5s')), 5000)
           )
         ]).catch(err => {
           console.warn('[BranchPilot] SDK.ready() failed, proceeding anyway:', err);
         });
         console.log('[BranchPilot] SDK ready - XDM handshake complete');
-        
-        // Initialize with English as default (will update after config loads)
+
         initLocale('en');
 
         const sdkConfig = SDK.getConfiguration() as ModalConfig;
@@ -265,31 +592,29 @@ const CreateBranchModal: React.FC = () => {
         }
 
         console.log('[BranchPilot] Loading config, work item, and repos...');
-        // Load config and work item in parallel
         const configService = new ConfigService(projectId);
-        
-        // Add timeout helper
+
         const withTimeout = <T,>(promise: Promise<T>, ms: number, name: string): Promise<T> => {
           return Promise.race([
             promise,
-            new Promise<T>((_, reject) => 
+            new Promise<T>((_, reject) =>
               setTimeout(() => reject(new Error(`${name} timeout after ${ms}ms`)), ms)
             )
           ]);
         };
-        
+
         const configPromise = withTimeout(configService.load(), 15000, 'Config')
           .then(c => { console.log('[BranchPilot] Config loaded:', c); return c; })
           .catch(e => { console.error('[BranchPilot] Config load failed:', e); throw e; });
-        
+
         const workItemPromise = withTimeout(workItemService.getWorkItemContext(workItemId, projectId), 15000, 'WorkItem')
           .then(wi => { console.log('[BranchPilot] WorkItem loaded:', wi); return wi; })
           .catch(e => { console.error('[BranchPilot] WorkItem load failed:', e); throw e; });
-        
+
         const reposPromise = withTimeout(repoService.getRepositories(projectId), 15000, 'Repos')
           .then(r => { console.log('[BranchPilot] Repos loaded:', r); return r; })
           .catch(e => { console.error('[BranchPilot] Repos load failed:', e); throw e; });
-        
+
         const [config, workItem, repos] = await Promise.all([
           configPromise,
           workItemPromise,
@@ -304,8 +629,7 @@ const CreateBranchModal: React.FC = () => {
 
         rulesEngineRef.current = new RulesEngine(config);
         maxLengthRef.current = config.general.maxLength;
-        
-        // Set language from saved config
+
         initLocale(config.general.language || 'en');
 
         if (!cancelled) {
@@ -367,15 +691,23 @@ const CreateBranchModal: React.FC = () => {
 
       try {
         const repo = state.repos.find((r) => r.id === repoId);
-        const branches = await repoService.getBranches(state.projectId, repoId);
-        const defaultBranch = repo?.defaultBranch ?? (branches[0]?.name ?? '');
+
+        const [branches, tags] = await Promise.all([
+          repoService.getBranches(state.projectId, repoId),
+          repoService.getTags(state.projectId, repoId),
+        ]);
+
+        const defaultBranchName = repo?.defaultBranch ?? (branches[0]?.name ?? '');
+        const defaultBranchObj = branches.find((b) => b.name === defaultBranchName);
+        const defaultObjectId = defaultBranchObj?.objectId ?? '';
 
         dispatch({
           type: 'BRANCHES_LOADED',
-          payload: { branches, defaultBranch },
+          payload: { branches, defaultBranch: defaultBranchName, defaultObjectId },
         });
+        dispatch({ type: 'TAGS_LOADED', payload: tags });
       } catch (err) {
-        logger.error('Failed to load branches', err);
+        logger.error('Failed to load branches/tags', err);
         dispatch({ type: 'SET_LOADING_BRANCHES', payload: false });
       }
     },
@@ -385,9 +717,8 @@ const CreateBranchModal: React.FC = () => {
   // ── Create ───────────────────────────────────────────────────────────────
 
   const handleCreate = useCallback(async () => {
-    const { selectedRepoId, selectedBaseBranch, branchName, workItem, projectId } = state;
+    const { selectedRepoId, selectedBaseBranch, selectedBaseObjectId, branchName, workItem, projectId } = state;
 
-    // Client-side validation
     if (!selectedRepoId) {
       dispatch({ type: 'CREATE_ERROR', payload: t('modal.error.repoRequired') });
       return;
@@ -410,18 +741,12 @@ const CreateBranchModal: React.FC = () => {
     dispatch({ type: 'CREATE_START' });
 
     try {
-      // Get the source branch objectId
-      const sourceObjectId = await repoService.getBranchObjectId(
-        projectId,
-        selectedRepoId,
-        selectedBaseBranch,
-      );
+      const sourceObjectId = selectedBaseObjectId;
       if (!sourceObjectId) {
         dispatch({ type: 'CREATE_ERROR', payload: t('modal.error.basedOnRequired') });
         return;
       }
 
-      // Create the branch
       const repo = state.repos.find((r) => r.id === selectedRepoId)!;
       const result = await branchService.createBranch({
         repoId: selectedRepoId,
@@ -455,10 +780,8 @@ const CreateBranchModal: React.FC = () => {
         return;
       }
 
-      // Link branch to work item (use result.branchName — may differ if _2/_3 suffix was added)
       await workItemService.addBranchLink(workItem!.id, projectId, selectedRepoId, result.branchName!);
 
-      // Optional: update work item state
       if (rulesEngineRef.current) {
         const rule = rulesEngineRef.current.resolveRule(selectedBaseBranch, workItem!.type);
         if (rule.workItemState?.enabled && rule.workItemState.state) {
@@ -466,7 +789,6 @@ const CreateBranchModal: React.FC = () => {
         }
       }
 
-      // Close the panel immediately
       try {
         const panelConfig = SDK.getConfiguration() as { panel?: { close(): void } };
         if (panelConfig?.panel?.close) {
@@ -487,13 +809,12 @@ const CreateBranchModal: React.FC = () => {
     const diag = JSON.stringify(logger.getDiagnostics(), null, 2);
     navigator.clipboard.writeText(diag).then(() => {
       dispatch({ type: 'DIAGNOSTICS_COPIED' });
-      setTimeout(() => { /* could reset here */ }, 2000);
     });
   }, []);
 
   // ── Render ───────────────────────────────────────────────────────────────
 
-  const { initState, initError, workItem, repos, branches } = state;
+  const { initState, initError, workItem, repos, branches, tags } = state;
 
   if (initState === 'loading') {
     return (
@@ -514,6 +835,8 @@ const CreateBranchModal: React.FC = () => {
       </div>
     );
   }
+
+  const selectedRepo = repos.find((r) => r.id === state.selectedRepoId);
 
   return (
     <div className="bp-modal">
@@ -546,32 +869,29 @@ const CreateBranchModal: React.FC = () => {
 
         {/* ── Repository ── */}
         <div className="bp-modal__field">
-          <label htmlFor="bp-repo">
+          <label>
             <svg className="bp-repo-icon" width="14" height="14" viewBox="0 0 48 48">
               <path fill="#F4511E" d="M42.2,22.1L25.9,5.8C25.4,5.3,24.7,5,24,5c0,0,0,0,0,0c-0.7,0-1.4,0.3-1.9,0.8l-3.5,3.5l4.1,4.1c0.4-0.2,0.8-0.3,1.3-0.3c1.7,0,3,1.3,3,3c0,0.5-0.1,0.9-0.3,1.3l4,4c0.4-0.2,0.8-0.3,1.3-0.3c1.7,0,3,1.3,3,3s-1.3,3-3,3c-1.7,0-3-1.3-3-3c0-0.5,0.1-0.9,0.3-1.3l-4-4c-0.1,0-0.2,0.1-0.3,0.1v10.4c1.2,0.4,2,1.5,2,2.8c0,1.7-1.3,3-3,3s-3-1.3-3-3c0-1.3,0.8-2.4,2-2.8V18.8c-1.2-0.4-2-1.5-2-2.8c0-0.5,0.1-0.9,0.3-1.3l-4.1-4.1L5.8,22.1C5.3,22.6,5,23.3,5,24c0,0.7,0.3,1.4,0.8,1.9l16.3,16.3c0,0,0,0,0,0c0.5,0.5,1.2,0.8,1.9,0.8s1.4-0.3,1.9-0.8l16.3-16.3c0.5-0.5,0.8-1.2,0.8-1.9C43,23.3,42.7,22.6,42.2,22.1z"/>
             </svg>
             {t('modal.field.repository')}
             <span className="bp-required"> *</span>
           </label>
-          <select
-            id="bp-repo"
-            className="bp-modal__select"
+          <SearchableSelect
+            options={repos.map((r) => ({ value: r.id, label: r.name }))}
             value={state.selectedRepoId}
+            onSelect={handleRepoChange}
+            placeholder={t('modal.field.repository.placeholder')}
+            filterPlaceholder={t('modal.picker.filterRepos')}
+            noOptionsText={t('modal.picker.noRepos')}
             disabled={state.creating}
-            onChange={(e) => handleRepoChange(e.target.value)}
-          >
-            <option value="" disabled>{t('modal.field.repository.placeholder')}</option>
-            {repos.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
+          />
         </div>
 
         {/* ── Based on ── */}
         <div className="bp-modal__field">
-          <label htmlFor="bp-base">
+          <label>
             <svg className="bp-branch-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.492 2.492 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z"/>
+              <path fillRule="evenodd" d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.492 2.492 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM3.5 3.25a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0z" />
             </svg>
             {t('modal.field.basedOn')}
             <span className="bp-required"> *</span>
@@ -582,18 +902,17 @@ const CreateBranchModal: React.FC = () => {
               <span>{t('modal.loading.branches')}</span>
             </div>
           ) : (
-            <select
-              id="bp-base"
-              className="bp-modal__select"
+            <BranchTagPicker
+              branches={branches}
+              tags={tags}
+              defaultBranch={selectedRepo?.defaultBranch}
               value={state.selectedBaseBranch}
+              onSelect={(name, objectId) =>
+                dispatch({ type: 'SET_BASE_REF', payload: { name, objectId } })
+              }
               disabled={!state.selectedRepoId || state.creating}
-              onChange={(e) => dispatch({ type: 'SET_BASE_BRANCH', payload: e.target.value })}
-            >
-              <option value="" disabled>{t('modal.field.basedOn.placeholder')}</option>
-              {branches.map((b) => (
-                <option key={b.name} value={b.name}>{b.name}</option>
-              ))}
-            </select>
+              loading={state.loadingBranches}
+            />
           )}
         </div>
 
@@ -706,7 +1025,6 @@ const CreateBranchModal: React.FC = () => {
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
-// Suppress browser extension errors that interfere with the page
 window.addEventListener('error', (event) => {
   const msg = event.message || '';
   if (msg.includes('runtime.lastError') || msg.includes('Receiving end does not exist')) {
