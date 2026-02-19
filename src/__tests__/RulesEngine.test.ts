@@ -10,6 +10,7 @@ const baseConfig: ExtensionConfig = {
     nonAlnumReplacement: '-',
     maxLength: 80,
     allowManualNameOverride: true,
+    language: 'en',
   },
   defaults: {
     template: 'feature/{wi.id}-{wi.title}',
