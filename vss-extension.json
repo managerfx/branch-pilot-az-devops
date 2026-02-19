@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "branch-pilot",
   "name": "BranchPilot",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "FeliceLombardi",
   "description": "Automate Git branch creation from Azure Boards Work Items. Enforce branch naming conventions, auto-link branches to tickets, and support GitFlow, GitHub Flow, and custom branching strategies.",
   "public": true,
