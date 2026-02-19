@@ -3,7 +3,7 @@
   "id": "branch-pilot-dev",
   "name": "BranchPilot (DEV)",
   "version": "1.0.6",
-  "publisher": "felicitomarket",
+  "publisher": "FeliceLombardi",
   "description": "[DEV] BranchPilot – local dev server at https://localhost:3000",
   "public": false,
   "categories": ["Azure Boards"],

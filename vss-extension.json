@@ -3,7 +3,7 @@
   "id": "branch-pilot",
   "name": "BranchPilot",
   "version": "1.0.0",
-  "publisher": "felicitomarket",
+  "publisher": "FeliceLombardi",
   "description": "Create branches from Work Items with smart naming rules, automatic linking, and full configurability.",
   "public": true,
   "categories": ["Azure Boards"],
@@ -24,10 +24,10 @@
   "screenshots": [],
   "links": {
     "getstarted": {
-      "uri": "https://github.com/felicitomarket/branch-pilot#readme"
+      "uri": "https://github.com/managerfx/branch-pilot-az-devops#readme"
     },
     "support": {
-      "uri": "https://github.com/felicitomarket/branch-pilot/issues"
+      "uri": "https://github.com/managerfx/branch-pilot-az-devops/issues"
     }
   },
   "branding": {

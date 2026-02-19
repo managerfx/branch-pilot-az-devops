@@ -33,7 +33,7 @@ async function initAction(): Promise<void> {
   await SDK.init({ loaded: false });
 
   const ctx = SDK.getExtensionContext();
-  // ctx.id == "<publisherId>.<extensionId>"  e.g. "felicitomarket.branch-pilot-dev"
+  // ctx.id == "<publisherId>.<extensionId>"  e.g. "FeliceLombardi.branch-pilot-dev"
   const actionContributionId = `${ctx.id}.create-branch-action`;
   const dialogContributionId = `${ctx.id}.create-branch-dialog`;
 

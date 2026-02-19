@@ -23,7 +23,7 @@
 
 ### From the Marketplace
 
-1. Install from [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=felicitomarket.branch-pilot).
+1. Install from [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=FeliceLombardi.branch-pilot).
 2. Open any Azure DevOps project.
 3. Navigate to **Project Settings → BranchPilot** to configure.
 
@@ -31,7 +31,7 @@
 
 ```bash
 # 1. Clone and install dependencies
-git clone https://github.com/felicitomarket/branch-pilot.git
+git clone https://github.com/managerfx/branch-pilot-az-devops.git
 cd branch-pilot
 npm install
 
@@ -268,4 +268,4 @@ Click **Copy diagnostics** to copy a JSON blob with the full error log — usefu
 
 ## License
 
-MIT © felicitomarket
+MIT © FeliceLombardi

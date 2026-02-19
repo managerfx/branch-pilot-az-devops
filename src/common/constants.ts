@@ -1,5 +1,5 @@
 export const EXTENSION_ID = 'branch-pilot';
-export const PUBLISHER_ID = 'felicitomarket';
+export const PUBLISHER_ID = 'FeliceLombardi';
 
 /** ExtensionDataService key for the project config */
 export const CONFIG_KEY = 'branchpilot-config';
