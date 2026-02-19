@@ -4,10 +4,10 @@
   "name": "BranchPilot",
   "version": "1.0.1",
   "publisher": "FeliceLombardi",
-  "description": "Create branches from Work Items with smart naming rules, automatic linking, and full configurability.",
+  "description": "Automate Git branch creation from Azure Boards Work Items. Enforce branch naming conventions, auto-link branches to tickets, and support GitFlow, GitHub Flow, and custom branching strategies.",
   "public": true,
   "categories": ["Azure Boards"],
-  "tags": ["branch", "git", "work item", "devops", "branching strategy"],
+  "tags": ["branch", "git", "work item", "branching strategy", "naming convention", "gitflow", "automation", "azure boards", "branch naming", "create branch"],
   "targets": [
     {
       "id": "Microsoft.VisualStudio.Services"

@@ -1,113 +1,162 @@
-# BranchPilot — Azure DevOps Extension
+# BranchPilot — Create Branches from Work Items in Azure DevOps
 
-> Create branches from Work Items with smart naming rules, automatic linking, and full configurability.
-
----
-
-## Features
-
-| Feature | Details |
-|---|---|
-| **Create branch from Work Item** | One click from the WI context menu |
-| **Smart naming rules** | Glob & regex rules on source branch, per-WI-type rules, fallback default |
-| **Automatic WI linking** | Branch is linked to the WI immediately after creation (standard Azure DevOps link) |
-| **Always asks repo + source** | No implicit assumptions — user always selects repository and "Based on" branch |
-| **Configurable state update** | Optionally move WI to "Active" (or any state) on branch creation |
-| **Per-project settings** | Full settings hub in Project Settings → BranchPilot |
-| **Export / Import config** | JSON export and import for sharing or backup |
-| **i18n** | UI in English and Italian |
+> **Automate Git branch creation directly from Azure Boards Work Items.**
+> Enforce consistent branch naming conventions, automatically link branches to Work Items, and keep your team's Git workflow clean — with zero manual effort.
 
 ---
 
-## Installation
+## The Problem BranchPilot Solves
 
-### From the Marketplace
+Every developer on an Azure DevOps team goes through the same ritual dozens of times a day:
 
-1. Install from [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=FeliceLombardi.branch-pilot).
-2. Open any Azure DevOps project.
-3. Navigate to **Project Settings → BranchPilot** to configure.
+1. Open a Work Item (Bug, User Story, Task, Feature…)
+2. Switch to the repository
+3. Type a branch name — trying to remember the team naming convention
+4. Forget to link the branch back to the Work Item
 
-### Local / Private install (development)
+The result: **inconsistent branch names**, broken traceability between code and tickets, and wasted time.
 
-```bash
-# 1. Clone and install dependencies
-git clone https://github.com/managerfx/branch-pilot-az-devops.git
-cd branch-pilot
-npm install
+**BranchPilot eliminates all of this with one click.**
 
-# 2. Build
-npm run build
+---
 
-# 3. Package as .vsix
-npm run package
+## What BranchPilot Does
 
-# 4. Install in your organisation via the Manage Extensions page
-#    (Org Settings → Extensions → Upload/Install)
+BranchPilot adds a **"New branch…"** action to the Work Item context menu in Azure Boards. When clicked, it opens a panel where the developer selects the target repository and the source branch — the branch name is **generated automatically** according to your team's naming rules.
+
+The branch is created in Git and **immediately linked to the Work Item** so it appears in the Work Item's Development section, giving full traceability from ticket to code.
+
+---
+
+## Key Features
+
+### One-click branch creation from any Work Item
+Create a Git branch directly from a Bug, User Story, Task, Feature, Epic, or any custom Work Item type — without leaving Azure Boards.
+
+### Smart branch naming engine
+Define naming rules based on:
+- **Source branch** (e.g. branching from `hotfix/*` → auto-prefix `hotfix/`, branching from `develop` → `feature/`)
+- **Work Item type** (Bug → `bugfix/`, User Story → `feature/`, Task → `task/`)
+- **Fallback default** for everything else
+
+Rules use **glob patterns** (`hotfix/*`, `release/*`) or **regular expressions** for maximum flexibility.
+
+### Automatic Work Item linking
+The newly created branch is automatically linked to the Work Item using the standard Azure DevOps artifact link (`ArtifactLink`). No need to manually associate branches — the Development panel updates immediately.
+
+### Configurable Work Item state transitions
+Optionally move the Work Item to a target state (e.g. "Active", "In Progress") as soon as the branch is created, keeping your board up to date automatically.
+
+### Always-explicit repository and source branch selection
+No silent assumptions. The developer always selects the **target repository** and the **"Based on" branch** — preventing accidental branches off the wrong base.
+
+### Editable branch name (optional)
+Allow developers to manually adjust the auto-generated name before confirming, or lock it to enforce strict naming conventions.
+
+### Per-project configuration hub
+Full settings UI available in **Project Settings → BranchPilot**. Configure naming rules, templates, state transitions, and general options — all stored per Azure DevOps project.
+
+### Export and Import configuration
+Export the project configuration as a JSON file and import it into other projects. Perfect for teams managing multiple repositories or projects with a shared branching strategy.
+
+### Bilingual UI — English and Italian
+The extension interface is fully available in **English** and **Italian**, with automatic language detection from the project settings.
+
+---
+
+## How It Works
+
+### Step 1 — Open a Work Item
+Open any saved Work Item on Azure Boards. The Work Item must have an ID (it must be saved at least once).
+
+### Step 2 — Open the context menu
+Click the `⋯` overflow menu on the Work Item form or the board card and select **"New branch… (BranchPilot)"**.
+
+### Step 3 — Choose repository and source branch
+A side panel opens. Select:
+- **Repository** — the Git repository where the branch will be created
+- **Based on** — the source branch to branch from (defaults to the repository's default branch)
+
+### Step 4 — Confirm the branch name
+The branch name is generated instantly from your naming rules. Review it, adjust it if allowed, and click **Create**.
+
+### Result
+The branch is created in Git and linked to the Work Item. The Work Item's Development section shows the new branch immediately. If a state transition is configured, the Work Item state is also updated.
+
+---
+
+## Branch Naming Engine
+
+Branch names are generated by a **rules engine** with strict precedence:
+
 ```
-
----
-
-## Usage
-
-1. Open any **Work Item** (must be saved — it needs an ID).
-2. Click the `⋯` context menu → **BranchPilot: Create branch**.
-3. A dialog opens:
-   - **Repository** — select target repo.
-   - **Based on** — select source branch (default = repo's default branch).
-   - **Branch name** — auto-generated; editable if allowed by settings.
-4. Click **Create**.
-
-The branch is created and linked to the Work Item. You stay on the Work Item page.
-
----
-
-## Naming Rules
-
-Branch names are generated by a **rules engine** with the following precedence:
-
-```
-1. rulesBySourceBranch  ← first match wins (glob or regex on the "Based on" branch)
-2. rulesByWorkItemType  ← first match wins (case-insensitive WI type)
+1. rulesBySourceBranch  ← first match wins (evaluated on the "Based on" branch)
+2. rulesByWorkItemType  ← first match wins (case-insensitive Work Item type)
 3. defaults             ← fallback template
 ```
 
-### Built-in defaults
+### Example naming rules and output
 
-| Source branch pattern | Result prefix | Example output |
+| Source branch | Work Item type | Generated branch name |
 |---|---|---|
-| `hotfix/*` (glob) | `hotfix/` | `hotfix/42-fix-critical-bug` |
-| `hotfix` (regex `^hotfix$`) | `hotfix/` | `hotfix/42-fix-critical-bug` |
-| `release/*` (glob) | `release/` | `release/42-add-login-feature` |
-| WI type = Bug | `bugfix/` | `bugfix/42-fix-crash-on-login` |
-| WI type = User Story | `feature/` | `feature/42-add-login-feature` |
-| *(default)* | *(none)* | `feature/42-add-login-feature` |
+| `hotfix/1.5` | Bug | `hotfix/99-fix-null-pointer-on-login` |
+| `hotfix/1.5` | User Story | `hotfix/42-add-payment-provider` |
+| `develop` | Bug | `bugfix/99-fix-null-pointer-on-login` |
+| `develop` | User Story | `feature/42-add-payment-provider` |
+| `develop` | Task | `task/7-write-unit-tests` |
+| `release/2024-Q1` | User Story | `release/42-add-payment-provider` |
+| `main` | Epic | `feature/15-platform-migration` |
 
 ### Template tokens
 
+Compose branch names using dynamic tokens:
+
 | Token | Value |
 |---|---|
-| `{wi.id}` | Work Item ID |
-| `{wi.title}` | Work Item title (sanitized) |
-| `{wi.type}` | Work Item type (e.g. `Bug`) |
-| `{wi.state}` | Work Item state |
-| `{wi.assignedTo}` | Assigned to display name |
-| `{prefix}` | Prefix from the matched rule |
+| `{wi.id}` | Work Item ID (e.g. `42`) |
+| `{wi.title}` | Work Item title, sanitized for Git |
+| `{wi.type}` | Work Item type (e.g. `Bug`, `User Story`) |
+| `{wi.state}` | Work Item state (e.g. `New`, `Active`) |
+| `{wi.assignedTo}` | Display name of the assigned user |
+| `{prefix}` | Prefix resolved by the matched rule |
 
-### Sanitization
+**Example template:** `{prefix}{wi.id}-{wi.title}` → `feature/42-add-payment-provider`
 
-- Non-alphanumeric characters → `-` (configurable)
-- Consecutive replacements are collapsed
-- Leading/trailing hyphens stripped
-- **Always lowercase** (configurable)
-- Truncated to `maxLength` characters (default: 80), preserving the WI ID
+### Name sanitization
+
+BranchPilot automatically sanitizes the generated name to produce valid Git branch names:
+- Special characters (spaces, `/`, `:`, `"`, `&`, `(`, `)`, etc.) → replaced with `-`
+- Consecutive separators collapsed to a single `-`
+- Leading and trailing `-` stripped
+- Forced to **lowercase** (configurable)
+- Truncated to `maxLength` characters (default: 80, hard limit: 250), always preserving the Work Item ID
+
+---
+
+## Supported Branching Strategies
+
+BranchPilot is designed to work with any Git branching strategy:
+
+**GitFlow**
+- `develop` → `feature/{id}-{title}`
+- `hotfix/*` → `hotfix/{id}-{title}`
+- `release/*` → `release/{id}-{title}`
+- Bug type → `bugfix/{id}-{title}`
+
+**GitHub Flow / Trunk-Based Development**
+- Any source → `feature/{id}-{title}` (single rule, simple template)
+
+**Custom enterprise conventions**
+- Full regex support: `^app/release\d+(/.*)?$` → `app/release/{id}-{title}`
+- Multiple repo overrides with different templates per repository
 
 ---
 
 ## Configuration
 
-Open **Project Settings → BranchPilot** to configure. Settings are stored per-project.
+Open **Project Settings → BranchPilot** to configure. All settings are stored per Azure DevOps project using the Extension Data Service.
 
-### General
+### General settings
 
 ```json
 {
@@ -123,11 +172,11 @@ Open **Project Settings → BranchPilot** to configure. Settings are stored per-
 | Field | Description |
 |---|---|
 | `lowercase` | Force branch names to lowercase (recommended: `true`) |
-| `nonAlnumReplacement` | Character used to replace non-alphanumeric chars (default: `"-"`) |
-| `maxLength` | Maximum branch name length (default: `80`, hard limit: `250`) |
-| `allowManualNameOverride` | Allow users to manually edit the generated branch name |
+| `nonAlnumReplacement` | Character used to replace invalid characters (default: `"-"`) |
+| `maxLength` | Maximum branch name length (default: `80`) |
+| `allowManualNameOverride` | Allow developers to edit the auto-generated name |
 
-### Full config schema
+### Full configuration schema
 
 ```jsonc
 {
@@ -150,11 +199,18 @@ Open **Project Settings → BranchPilot** to configure. Settings are stored per-
   "rulesBySourceBranch": [
     {
       "name": "Hotfix branch rule",
-      "matchType": "glob",       // "glob" | "regex"
+      "matchType": "glob",
       "match": "hotfix/*",
       "prefix": "hotfix/",
       "template": "{prefix}{wi.id}-{wi.title}",
       "workItemState": { "enabled": true, "state": "In Progress" }
+    },
+    {
+      "name": "Release branch rule",
+      "matchType": "regex",
+      "match": "^release(/.*)?$",
+      "prefix": "release/",
+      "template": "{prefix}{wi.id}-{wi.title}"
     }
   ],
   "rulesByWorkItemType": [
@@ -163,6 +219,17 @@ Open **Project Settings → BranchPilot** to configure. Settings are stored per-
       "prefix": "bugfix/",
       "template": "{prefix}{wi.id}-{wi.title}",
       "workItemState": { "enabled": true, "state": "Active" }
+    },
+    {
+      "workItemType": "User Story",
+      "prefix": "feature/",
+      "template": "{prefix}{wi.id}-{wi.title}",
+      "workItemState": { "enabled": true, "state": "Active" }
+    },
+    {
+      "workItemType": "Task",
+      "prefix": "task/",
+      "template": "{prefix}{wi.id}-{wi.title}"
     }
   ]
 }
@@ -171,81 +238,45 @@ Open **Project Settings → BranchPilot** to configure. Settings are stored per-
 ### Export / Import
 
 In **Project Settings → BranchPilot**:
-- **Export JSON** — downloads the current config as `branchpilot-config.json`.
-- **Import JSON** — loads a previously exported config (or import from another project).
+- **Export JSON** — downloads the current configuration as `branchpilot-config.json`
+- **Import JSON** — loads a configuration exported from this or another project
 
 ---
 
-## Development
+## Required Permissions
 
-### Prerequisites
+BranchPilot requires the following Azure DevOps scopes:
 
-- Node.js ≥ 18
-- `tfx-cli` installed globally: `npm i -g tfx-cli`
+| Scope | Purpose |
+|---|---|
+| `vso.work_write` | Read Work Item details and update Work Item state |
+| `vso.code_write` | Create Git branches and add artifact links |
 
-### Scripts
+---
+
+## Installation
+
+### From the Visual Studio Marketplace
+
+1. Install from [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=FeliceLombardi.branch-pilot).
+2. Open any Azure DevOps project.
+3. Navigate to **Project Settings → BranchPilot** to configure naming rules.
+
+### Private / on-premises install
 
 ```bash
-npm run build         # Production build → dist/
-npm run build:dev     # Development build (source maps)
-npm run watch         # Watch mode
-npm run test          # Run unit tests
-npm run test:watch    # Watch tests
-npm run package       # Build + create .vsix
+# 1. Clone the repository
+git clone https://github.com/managerfx/branch-pilot-az-devops.git
+cd branch-pilot-az-devops
+
+# 2. Install dependencies
+npm install
+
+# 3. Build and package
+npm run package
+
+# 4. Upload the generated .vsix via Organisation Settings → Extensions → Upload
 ```
-
-### Project structure
-
-```
-branch-pilot/
-├── src/
-│   ├── action/              # Hidden-iframe action handler
-│   │   ├── action.ts
-│   │   └── index.html
-│   ├── modal/               # Branch creation dialog
-│   │   ├── modal.tsx
-│   │   ├── modal.scss
-│   │   └── index.html
-│   ├── settings/            # Project Settings hub
-│   │   ├── settings.tsx
-│   │   ├── settings.scss
-│   │   └── index.html
-│   ├── services/
-│   │   ├── ConfigService.ts
-│   │   ├── WorkItemService.ts
-│   │   ├── RepoService.ts
-│   │   ├── BranchService.ts
-│   │   └── Logger.ts
-│   ├── rules/
-│   │   ├── RulesEngine.ts
-│   │   └── TemplateRenderer.ts
-│   ├── common/
-│   │   ├── types.ts
-│   │   ├── constants.ts
-│   │   └── utils.ts
-│   ├── i18n/
-│   │   ├── en.ts
-│   │   ├── it.ts
-│   │   └── index.ts
-│   └── __tests__/
-│       ├── utils.test.ts
-│       ├── TemplateRenderer.test.ts
-│       └── RulesEngine.test.ts
-├── assets/
-│   └── icons/
-├── vss-extension.json
-├── webpack.config.js
-├── tsconfig.json
-└── package.json
-```
-
-### Publishing to Marketplace
-
-1. Create a publisher at [marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage).
-2. Update `publisher` in `vss-extension.json` and `constants.ts`.
-3. Set `"public": true` in `vss-extension.json`.
-4. Run `npm run package` to generate the `.vsix`.
-5. Upload via the Marketplace portal or: `tfx extension publish --vsix branch-pilot-1.0.0.vsix`.
 
 ---
 
@@ -253,19 +284,31 @@ branch-pilot/
 
 | Symptom | Solution |
 |---|---|
-| "Save the Work Item before creating a branch" | The WI must be saved (have an ID) before using BranchPilot. |
-| Branch dialog doesn't open | Ensure the extension is installed and you have the necessary permissions. |
-| "You don't have permission to create branches" | Your account needs `GenericContribute` on the Git repository. |
-| Branch name is not auto-generated | Check that a repository and source branch are selected. |
-| Settings not saving | Ensure you're a Project Administrator. |
+| "Save the Work Item before creating a branch" | The Work Item must be saved and have a valid ID before using BranchPilot |
+| Branch dialog / panel does not open | Ensure the extension is installed and enabled for the project |
+| "You don't have permission to create branches" | Your account needs `GenericContribute` permission on the target Git repository |
+| Branch name is not auto-generated | Make sure a repository and a source branch are selected in the panel |
+| Settings not saving | Only Project Administrators can save BranchPilot settings |
+| State not updating after branch creation | Check that `workItemState.enabled` is `true` in the matching rule and that the target state exists in the Work Item process |
 
 ### Diagnostic details
 
-When an error occurs, a collapsible **Diagnostic details** section appears in the dialog.
-Click **Copy diagnostics** to copy a JSON blob with the full error log — useful when filing bug reports.
+When an error occurs, a collapsible **Diagnostic details** section appears in the panel.
+Click **Copy diagnostics** to copy a structured JSON log — useful when reporting issues at [github.com/managerfx/branch-pilot-az-devops/issues](https://github.com/managerfx/branch-pilot-az-devops/issues).
+
+---
+
+## Use Cases
+
+- **Development teams** enforcing a company-wide Git branching convention (GitFlow, GitHub Flow, trunk-based)
+- **Scrum / Kanban teams** wanting to keep Azure Boards Work Items automatically linked to branches
+- **Tech leads** who want to remove manual steps and naming errors from the developer workflow
+- **Enterprise teams** managing multiple repositories with different branching strategies per repo
+- **Regulated environments** where traceability between tickets and code changes is mandatory
 
 ---
 
 ## License
 
 MIT © FeliceLombardi
+Source: [github.com/managerfx/branch-pilot-az-devops](https://github.com/managerfx/branch-pilot-az-devops)
