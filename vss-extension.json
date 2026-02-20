@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "branch-pilot",
   "name": "BranchPilot",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "FeliceLombardi",
   "description": "Automate Git branch creation from Azure Boards Work Items. Enforce branch naming conventions, auto-link branches to tickets, and support GitFlow, GitHub Flow, and custom branching strategies.",
   "public": true,
@@ -21,13 +21,29 @@
       "path": "README.md"
     }
   },
-  "screenshots": [],
+  "screenshots": [
+    {
+      "path": "assets/screenshots/create-branch-modal.png"
+    },
+    {
+      "path": "assets/screenshots/settings-page.png"
+    },
+    {
+      "path": "assets/screenshots/settings-export.png"
+    }
+  ],
   "links": {
     "getstarted": {
       "uri": "https://github.com/managerfx/branch-pilot-az-devops#readme"
     },
     "support": {
       "uri": "https://github.com/managerfx/branch-pilot-az-devops/issues"
+    },
+    "repository": {
+      "uri": "https://github.com/managerfx/branch-pilot-az-devops"
+    },
+    "license": {
+      "uri": "https://github.com/managerfx/branch-pilot-az-devops/blob/main/LICENSE"
     }
   },
   "branding": {
